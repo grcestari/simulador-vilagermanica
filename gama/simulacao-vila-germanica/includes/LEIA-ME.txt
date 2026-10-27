@@ -1,0 +1,21 @@
+PVG - Shapefile em sistema local
+
+Origem: PVG - 4 setores-Layout2.pdf, exportado pelo AutoCAD.
+Geometrias: 66844 feicoes multipartes de linha.
+Textos: 630 pontos com atributo TEXT.
+Extensao local: X 219.962 a 2550.720; Y -1192.440 a 3263.760.
+
+Arquivos principais:
+- pvg_geometrias.shp: linhas e curvas do desenho; curvas cubicas foram densificadas.
+- pvg_textos.shp: centroides das palavras, com texto no DBF.
+- PREVIA_geometrias_extraidas.png: verificacao visual da extracao.
+
+Sistema de coordenadas:
+Coordenadas cartesianas locais derivadas dos pontos do PDF. O eixo Y foi invertido para ficar
+crescente para cima. A unidade nominal e ponto PDF, nao metro. O PRJ declara um sistema local.
+
+Antes de simulacao metricamente valida:
+1. Identifique pelo menos dois pontos de controle ou uma distancia conhecida no DWG/planta.
+2. Aplique transformacao de escala, rotacao e translacao no QGIS.
+3. Se necessario, atribua o SRC oficial adequado ao levantamento original.
+4. Classifique as linhas por funcao: paredes, portas, saidas, vias, mobiliario e limites.

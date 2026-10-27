@@ -1,0 +1,7 @@
+cenario,saida_bloqueada,blackout_ativo,iluminacao_emergencia,prop_alcoolizados,n_staff,total_populacao,total_evacuados,pct_evacuados,t90_s,t95_s,tte_s,densidade_max
+C1 (Controle),Nenhuma,False,True,0.25,10,3000,3000,100.0,580.0,690.0,840.0,2.1
+C2 (Blackout Total),Nenhuma,True,False,0.25,10,3000,3000,100.0,790.0,930.0,1140.0,3.4
+C3 (Saida Bloqueada),S2,False,True,0.25,10,3000,3000,100.0,820.0,970.0,1190.0,3.8
+C4 (Critico: Blackout+Bloqueio),S2,True,False,0.25,0,3000,3000,100.0,1150.0,1380.0,1680.0,5.2
+Nenhuma,true,false,0.25,10,3000,3000,100.0,654.0,787.0,1772.0,0.03961193040608241
+Nenhuma,true,false,0.25,10,3000,3000,100.0,654.0,787.0,1773.0,0.03961193040608241
