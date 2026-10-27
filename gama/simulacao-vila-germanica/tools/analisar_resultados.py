@@ -52,7 +52,7 @@ def analisar_historico():
     # 2. Gráfico de Fluxo por Saída (S1 a S6)
     fig, ax = plt.subplots(figsize=(11, 5))
     cores = {"fluxo_S1": "red", "fluxo_S2": "blue", "fluxo_S3": "green", "fluxo_S4": "purple", "fluxo_S5": "orange", "fluxo_S6": "cyan"}
-    labels = {"fluxo_S1": "S1 (Stein)", "fluxo_S2": "S2 (Campos Oeste)", "fluxo_S3": "S3 (Pátio Leste)", "fluxo_S4": "S4 (Acesso Sul)", "fluxo_S5": "S5 (Galegão)", "fluxo_S6": "S6 (Biergarten)"}
+    labels = {"fluxo_S1": "S1 (Biergarten Oeste)", "fluxo_S2": "S2 (Campos Oeste)", "fluxo_S3": "S3 (Pátio Leste)", "fluxo_S4": "S4 (Acesso Sul)", "fluxo_S5": "S5 (Galegão)", "fluxo_S6": "S6 (Biergarten Norte)"}
     
     for col, c in cores.items():
         if col in df.columns:

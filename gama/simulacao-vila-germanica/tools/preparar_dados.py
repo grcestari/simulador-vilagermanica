@@ -10,10 +10,90 @@ import os
 import sys
 import random
 import csv
-import shapefile
+import struct
+
+try:
+    import shapefile
+except ImportError:
+    shapefile = None
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INCLUDES_DIR = os.path.join(BASE_DIR, "includes")
+
+
+def _write_point_shapefile_fallback(base_path, fields, records_with_xy):
+    """Grava shapefile de pontos (.shp, .shx, .dbf) usando apenas biblioteca padrão Python."""
+    pts = [(r[-2], r[-1]) for r in records_with_xy]
+    attrs = [r[:-2] for r in records_with_xy]
+    xs = [p[0] for p in pts] if pts else [0.0]
+    ys = [p[1] for p in pts] if pts else [0.0]
+    xmin, ymin, xmax, ymax = min(xs), min(ys), max(xs), max(ys)
+
+    # 1. .shp e .shx
+    shp_records = []
+    shx_records = []
+    offset_words = 50  # 100 bytes header
+    for i, (x, y) in enumerate(pts, start=1):
+        content = struct.pack("<Idd", 1, float(x), float(y))  # shapeType=1 (POINT)
+        content_words = len(content) // 2
+        rec_hdr = struct.pack(">II", i, content_words)
+        shp_records.append(rec_hdr + content)
+        shx_records.append(struct.pack(">II", offset_words, content_words))
+        offset_words += 4 + content_words
+
+    shp_len_words = offset_words
+    shx_len_words = 50 + 4 * len(pts)
+
+    def make_header(file_len_words):
+        hdr = bytearray(100)
+        struct.pack_into(">IIIIIII", hdr, 0, 9994, 0, 0, 0, 0, 0, file_len_words)
+        struct.pack_into("<II", hdr, 28, 1000, 1)
+        struct.pack_into("<dddddddd", hdr, 36, xmin, ymin, xmax, ymax, 0.0, 0.0, 0.0, 0.0)
+        return bytes(hdr)
+
+    with open(base_path + ".shp", "wb") as f:
+        f.write(make_header(shp_len_words))
+        for r in shp_records:
+            f.write(r)
+
+    with open(base_path + ".shx", "wb") as f:
+        f.write(make_header(shx_len_words))
+        for r in shx_records:
+            f.write(r)
+
+    # 2. .dbf
+    num_records = len(attrs)
+    len_header = 32 + 32 * len(fields) + 1
+    len_record = 1 + sum(f[2] for f in fields)
+    with open(base_path + ".dbf", "wb") as f:
+        dbf_hdr = bytearray(32)
+        dbf_hdr[0] = 3
+        dbf_hdr[1:4] = bytes([26, 10, 27])
+        struct.pack_into("<IHH", dbf_hdr, 4, num_records, len_header, len_record)
+        f.write(dbf_hdr)
+        for fname, ftype, flen, fdec in fields:
+            fdesc = bytearray(32)
+            name_bytes = fname.encode("ascii")[:11]
+            fdesc[:len(name_bytes)] = name_bytes
+            fdesc[11] = ord(ftype)
+            fdesc[16] = flen
+            fdesc[17] = fdec
+            f.write(fdesc)
+        f.write(b"\x0d")
+        for row in attrs:
+            f.write(b" ")
+            for val, (fname, ftype, flen, fdec) in zip(row, fields):
+                if ftype == "C":
+                    s = str(val).encode("utf-8")[:flen]
+                    f.write(s + b" " * (flen - len(s)))
+                elif ftype == "F":
+                    s = f"{float(val):>{flen}.{fdec}f}".encode("ascii")[:flen]
+                    f.write(s)
+                elif ftype == "N":
+                    s = f"{int(val):>{flen}d}".encode("ascii")[:flen]
+                    f.write(s)
+        f.write(b"\x1a")
+
 
 def gerar_populacao_csv(n_total=3000, prop_alc=0.25, prop_ido=0.15, seed=42):
     """Gera o arquivo CSV de visitantes com distribuição realista por setor e perfil."""
@@ -59,49 +139,88 @@ def gerar_populacao_csv(n_total=3000, prop_alc=0.25, prop_ido=0.15, seed=42):
     print(f"[OK] Gerado arquivo de populacao sintetica: {output_path} ({pid-1} agentes)")
 
 def gerar_camadas_gis():
-    """Gera shapefiles auxiliares (saidas, setores, caminhos) na pasta includes."""
+    """Gera shapefiles auxiliares (saidas, passagens, setores, caminhos) na pasta includes."""
     prj_path = os.path.join(INCLUDES_DIR, "pvg_geometrias.prj")
     prj_content = ""
     if os.path.exists(prj_path):
         with open(prj_path, "r", encoding="utf-8", errors="ignore") as f:
             prj_content = f.read()
 
-    # 1. Saídas
+    # 1. Saídas Externas (apenas portas que dão para fora dos pavilhões)
     saidas_base = os.path.join(INCLUDES_DIR, "saidas")
+    saidas_fields = [
+        ("ID", "C", 10, 0),
+        ("NOME", "C", 40, 0),
+        ("SETOR", "C", 20, 0),
+        ("LARGURA_M", "F", 6, 2),
+        ("CAP_PESSOA", "N", 6, 0),
+        ("STATUS", "C", 15, 0),
+    ]
+    saidas_data = [
+        ("S1", "Saida Biergarten Oeste", "Setor 4", 4.0, 10, "Aberta", 1102.68, 2722.17),
+        ("S2", "Saida Setor 2 Oeste (Campos)", "Setor 2", 8.0, 20, "Aberta", 1116.36, 1692.57),
+        ("S3", "Saida Setor 2 Leste (Patio)", "Setor 2", 8.0, 20, "Aberta", 2233.32, 1434.93),
+        ("S4", "Saida Setor 3 Oeste (Acesso)", "Setor 3", 6.0, 15, "Aberta", 1112.04, 677.73),
+        ("S5", "Saida Setor 3 Sul (Galegao)", "Setor 3", 6.0, 15, "Aberta", 1751.31, 462.36),
+        ("S6", "Saida Biergarten Norte", "Setor 4", 8.0, 20, "Aberta", 1639.95, 3000.12),
+        ("E3", "Emergencia Setor 3 Leste", "Setor 3", 4.0, 10, "Aberta", 2231.76, 721.53),
+    ]
     try:
-        w = shapefile.Writer(saidas_base, shapeType=shapefile.POINT)
-        w.field("ID", "C", 10)
-        w.field("NOME", "C", 40)
-        w.field("SETOR", "C", 20)
-        w.field("LARGURA_M", "F", 6, 2)
-        w.field("CAP_PESSOA", "N", 6)
-        w.field("STATUS", "C", 15)
-
-        saidas_data = [
-            ("S1", "Saida Setor 1 Norte (Stein)", "Setor 1", 6.0, 15, "Aberta", 1622.43, 2540.28),
-            ("S2", "Saida Setor 2 Oeste (Campos)", "Setor 2", 8.0, 20, "Aberta", 1116.36, 1692.57),
-            ("S3", "Saida Setor 2 Leste (Patio)", "Setor 2", 8.0, 20, "Aberta", 2233.32, 1434.93),
-            ("S4", "Saida Setor 3 Oeste (Acesso)", "Setor 3", 6.0, 15, "Aberta", 1112.04, 677.73),
-            ("S5", "Saida Setor 3 Sul (Galegao)", "Setor 3", 6.0, 15, "Aberta", 1751.31, 462.36),
-            ("S6", "Saida Biergarten Norte", "Setor 4", 8.0, 20, "Aberta", 1639.95, 3000.12),
-            ("E1", "Emergencia Setor 1 Sul", "Setor 1", 4.0, 10, "Aberta", 1945.23, 1831.32),
-            ("E2", "Emergencia Rota Fuga Central", "Setor 2", 5.0, 12, "Aberta", 1501.47, 1028.16),
-            ("E3", "Emergencia Setor 3 Leste", "Setor 3", 4.0, 10, "Aberta", 2231.76, 721.53),
-            ("E4", "Emergencia Biergarten Oeste", "Setor 4", 4.0, 10, "Aberta", 1102.68, 2722.17)
-        ]
-        for sid, nome, setor, larg, cap, status, x, y in saidas_data:
-            w.point(x, y)
-            w.record(sid, nome, setor, larg, cap, status)
-        w.close()
+        if shapefile is not None:
+            w = shapefile.Writer(saidas_base, shapeType=shapefile.POINT)
+            for fname, ftype, flen, fdec in saidas_fields:
+                w.field(fname, ftype, flen, fdec)
+            for sid, nome, setor, larg, cap, status, x, y in saidas_data:
+                w.point(x, y)
+                w.record(sid, nome, setor, larg, cap, status)
+            w.close()
+        else:
+            _write_point_shapefile_fallback(saidas_base, saidas_fields, saidas_data)
         if prj_content:
             with open(os.path.join(INCLUDES_DIR, "saidas.prj"), "w") as f:
                 f.write(prj_content)
-        print(f"[OK] Camada de saidas gerada: {saidas_base}.shp")
+        print(f"[OK] Camada de saidas externas gerada: {saidas_base}.shp")
     except Exception as e:
         print(f"[AVISO] Camada de saidas ja existente ou em uso pelo GAMA ({e})")
 
+    # 1b. Passagens Internas entre Setores (portas de interligação entre pavilhões)
+    passagens_base = os.path.join(INCLUDES_DIR, "passagens")
+    passagens_fields = [
+        ("ID", "C", 10, 0),
+        ("NOME", "C", 40, 0),
+        ("SETOR_A", "C", 20, 0),
+        ("SETOR_B", "C", 20, 0),
+        ("LARGURA_M", "F", 6, 2),
+        ("CAP_PESSOA", "N", 6, 0),
+        ("STATUS", "C", 15, 0),
+    ]
+    passagens_data = [
+        ("P1", "Passagem Setor 1 - Setor 4", "Setor 1", "Setor 4", 6.0, 15, "Aberta", 1622.43, 2540.28),
+        ("P2", "Passagem Setor 1 - Setor 2", "Setor 1", "Setor 2", 6.0, 15, "Aberta", 1945.23, 1831.32),
+        ("P3", "Passagem Setor 2 - Setor 3", "Setor 2", "Setor 3", 6.0, 15, "Aberta", 1501.47, 1028.16),
+    ]
+    try:
+        if shapefile is not None:
+            w = shapefile.Writer(passagens_base, shapeType=shapefile.POINT)
+            for fname, ftype, flen, fdec in passagens_fields:
+                w.field(fname, ftype, flen, fdec)
+            for pid, nome, sa, sb, larg, cap, status, x, y in passagens_data:
+                w.point(x, y)
+                w.record(pid, nome, sa, sb, larg, cap, status)
+            w.close()
+        else:
+            _write_point_shapefile_fallback(passagens_base, passagens_fields, passagens_data)
+        if prj_content:
+            with open(os.path.join(INCLUDES_DIR, "passagens.prj"), "w") as f:
+                f.write(prj_content)
+        print(f"[OK] Camada de passagens entre setores gerada: {passagens_base}.shp")
+    except Exception as e:
+        print(f"[AVISO] Camada de passagens ja existente ou em uso pelo GAMA ({e})")
+
     # 2. Setores
     setores_base = os.path.join(INCLUDES_DIR, "setores")
+    if shapefile is None:
+        return
     try:
         w = shapefile.Writer(setores_base, shapeType=shapefile.POLYGON)
         w.field("ID", "C", 10)

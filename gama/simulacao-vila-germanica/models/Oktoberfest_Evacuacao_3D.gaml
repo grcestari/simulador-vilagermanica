@@ -26,6 +26,11 @@ global {
 	    "../includes/saidas.shp",
 	"EPSG:3857"
 	);
+
+	file shape_file_passagens <- shape_file(
+	    "../includes/passagens.shp",
+	"EPSG:3857"
+	);
 	
 	file shape_file_caminhos <- shape_file(
 	    "../includes/caminhos.shp",
@@ -80,6 +85,10 @@ global {
 	map<string, int> evacuados_por_saida <- ["S1"::0, "S2"::0, "S3"::0, "S4"::0, "S5"::0, "S6"::0];
 	map<string, int> fluxo_ciclo_saida   <- ["S1"::0, "S2"::0, "S3"::0, "S4"::0, "S5"::0, "S6"::0];
 
+	// Topologia de adjacência Norte-Sul dos pavilhões para travessia pelas passagens internas
+	map<string, int> ordem_setor <- ["Setor 4"::0, "Setor 1"::1, "Setor 2"::2, "Setor 3"::3];
+	list<string> setores_ordenados <- ["Setor 4", "Setor 1", "Setor 2", "Setor 3"];
+
 	// Rede de circulação
 	graph rede_caminhos;
 
@@ -101,11 +110,22 @@ global {
 			cor_hex::string(read("COR_HEX"))
 		];
 
-		// 2. Criar saídas a partir do shapefile
+		// 2. Criar saídas externas a partir do shapefile
 		create saida from: shape_file_saidas with: [
 			id_saida::string(read("ID")),
 			nome_saida::string(read("NOME")),
 			setor_ref::string(read("SETOR")),
+			largura_m::float(read("LARGURA_M")),
+			capacidade_vazao::int(read("CAP_PESSOA")),
+			status::string(read("STATUS"))
+		];
+
+		// 2b. Criar portas de passagem interna entre setores a partir do shapefile
+		create passagem from: shape_file_passagens with: [
+			id_passagem::string(read("ID")),
+			nome_passagem::string(read("NOME")),
+			setor_a::string(read("SETOR_A")),
+			setor_b::string(read("SETOR_B")),
 			largura_m::float(read("LARGURA_M")),
 			capacidade_vazao::int(read("CAP_PESSOA")),
 			status::string(read("STATUS"))
@@ -134,7 +154,7 @@ global {
 			list<saida> saidas_ativas <- saida where (each.status = "Aberta");
 			int staff_alocados <- 0;
 			
-			// Alocar staff prioritariamente nos portões de saída
+			// Alocar staff prioritariamente nos portões de saída externa
 			loop s over: saidas_ativas {
 				if (staff_alocados < n_staff) {
 					create staff {
@@ -144,6 +164,22 @@ global {
 						alcance_iluminacao <- 30.0;
 					}
 					s.tem_balizador <- true;
+					staff_alocados <- staff_alocados + 1;
+				}
+			}
+
+			// Alocar staff nas passagens entre setores para orientar a transição entre pavilhões
+			list<passagem> passagens_ativas <- passagem where (each.status = "Aberta");
+			loop p over: passagens_ativas {
+				if (staff_alocados < n_staff and not empty(saidas_ativas)) {
+					saida melhor_saida <- saidas_ativas with_min_of (p.location distance_to each.location);
+					create staff {
+						location <- p.location;
+						saida_alvo <- melhor_saida;
+						tem_lanterna <- true;
+						alcance_iluminacao <- 30.0;
+					}
+					p.tem_balizador <- true;
 					staff_alocados <- staff_alocados + 1;
 				}
 			}
@@ -191,9 +227,11 @@ global {
 
 			// Alocação espacial no pavilhão
 			setor setor_inicial <- one_of(setor);
+			setor_atual <- setor_inicial.id_setor;
 			location <- any_location_in(setor_inicial);
 			speed <- velocidade_base;
 			alvo_saida <- nil;
+			porta_alvo <- nil;
 		}
 
 		// Inicializar cabeçalho do arquivo CSV de histórico se exportação estiver ativa
@@ -227,7 +265,7 @@ global {
 		restantes <- length(visitante);
 		pct_evacuados <- (total_evacuados / total_populacao) * 100.0;
 
-		// Contar agentes temporariamente impedidos nos portões
+		// Contar agentes temporariamente impedidos nos portões ou passagens
 		agentes_impedidos <- visitante count (each.esperando_no_portao);
 
 		// Registro de T90, T95 e TTE
@@ -240,11 +278,18 @@ global {
 			write ">>> Marco atingido: T95 = " + t95 + "s (" + total_evacuados + " evacuados)";
 		}
 
-		// Estimativa da densidade máxima nos gargalos (portões)
+		// Estimativa da densidade máxima nos gargalos (portões de saída e passagens entre setores)
 		float maior_dens <- 0.0;
 		ask saida where (each.status = "Aberta") {
 			int vizinhos <- length(visitante at_distance 15.0);
 			float dens_local <- vizinhos / (3.14159 * 15.0 * 15.0 / 2.0); // pessoas/m² aproximada
+			if (dens_local > maior_dens) {
+				maior_dens <- dens_local;
+			}
+		}
+		ask passagem where (each.status = "Aberta") {
+			int vizinhos <- length(visitante at_distance 15.0);
+			float dens_local <- vizinhos / (3.14159 * 15.0 * 15.0 / 2.0);
 			if (dens_local > maior_dens) {
 				maior_dens <- dens_local;
 			}
@@ -319,7 +364,7 @@ species caminho {
 	}
 }
 
-// 4. Portões de Saída da Vila Germânica
+// 4. Portões de Saída Externa da Vila Germânica
 species saida {
 	string id_saida;
 	string nome_saida;
@@ -341,6 +386,34 @@ species saida {
 		} else {
 			draw rectangle(22.0, 12.0) depth: 6.0 color: (tem_balizador ? #cyan : #green) border: #black;
 			draw id_saida at: location + {0, -12, 0} color: #lime font: font("SansSerif", 12, #bold);
+		}
+	}
+}
+
+// 4b. Portas de Passagem Interna entre Setores
+species passagem {
+	string id_passagem;
+	string nome_passagem;
+	string setor_a;
+	string setor_b;
+	float largura_m;
+	int capacidade_vazao; // capacidade máxima de pessoas que atravessam entre setores por segundo
+	string status;        // "Aberta" ou "Bloqueada"
+	bool tem_balizador <- false;
+	int ocupacao_atual <- 0;
+	int total_passagens <- 0;
+
+	reflex gerenciar_fluxo {
+		ocupacao_atual <- 0; // zerado a cada ciclo para permitir nova leva de pedestres
+	}
+
+	aspect padrao {
+		if (status = "Bloqueada") {
+			draw cross(18.0, 4.0) color: #red;
+			draw "BLOQUEADA (" + id_passagem + ")" at: location + {0, -15, 0} color: #red font: font("SansSerif", 11, #bold);
+		} else {
+			draw rectangle(22.0, 10.0) depth: 4.0 color: #orange border: #white;
+			draw id_passagem + " (Passagem)" at: location + {0, -14, 0} color: #orange font: font("SansSerif", 11, #bold);
 		}
 	}
 }
@@ -367,9 +440,37 @@ species visitante skills: [moving] {
 	float capacidade_orientacao; // probabilidade de escolher o melhor portão diretamente
 	rgb cor_agente;
 	
+	string setor_atual;
 	saida alvo_saida <- nil;
+	passagem porta_alvo <- nil;
 	bool esperando_no_portao <- false;
 	int ciclos_impedidos <- 0;
+
+	// Calcula a distância efetiva até uma saída externa considerando as passagens entre setores
+	float distancia_ate_saida(saida s) {
+		if (s = nil) {
+			return 100000.0;
+		}
+		if (s.setor_ref = setor_atual) {
+			return self distance_to s;
+		}
+		int idx_orig <- ordem_setor[setor_atual];
+		int idx_dest <- ordem_setor[s.setor_ref];
+		string prox_setor <- (idx_orig < idx_dest) ? setores_ordenados[idx_orig + 1] : setores_ordenados[idx_orig - 1];
+		passagem p1 <- first(passagem where (
+			each.status = "Aberta" and (
+				(each.setor_a = setor_atual and each.setor_b = prox_setor) or
+				(each.setor_b = setor_atual and each.setor_a = prox_setor)
+			)
+		));
+		if (p1 = nil) {
+			return 100000.0;
+		}
+		if (abs(idx_orig - idx_dest) = 1) {
+			return (self distance_to p1) + (p1 distance_to s);
+		}
+		return (self distance_to p1) + (p1 distance_to s) + (abs(idx_orig - idx_dest) * 300.0);
+	}
 
 	// Percepção e Decisão
 	reflex decidir_saida when: alvo_saida = nil or (alvo_saida != nil and alvo_saida.status = "Bloqueada") {
@@ -385,39 +486,110 @@ species visitante skills: [moving] {
 
 		// Se houver staff balizador próximo com lanterna, o pedestre é orientado para o portão do staff
 		staff guia_proximo <- staff closest_to self;
-		if (guia_proximo != nil and (self distance_to guia_proximo) <= guia_proximo.alcance_iluminacao and guia_proximo.saida_alvo != nil) {
-			alvo_saida <- guia_proximo.saida_alvo;
-			return;
+		if (guia_proximo != nil and (self distance_to guia_proximo) <= guia_proximo.alcance_iluminacao and guia_proximo.saida_alvo != nil and guia_proximo.saida_alvo.status = "Aberta") {
+			if (guia_proximo.saida_alvo.setor_ref = setor_atual or setor_atual = "Setor 1") {
+				alvo_saida <- guia_proximo.saida_alvo;
+				return;
+			}
 		}
 
 		// Sob blackout sem iluminação de emergência e sem staff:
-		// Visitantes alcoolizados e com baixa orientação tendem a imitar o fluxo de multidão
+		// Visitantes alcoolizados e com baixa orientação tendem a imitar o fluxo de multidão no mesmo setor
 		if (blackout_ativo and not iluminacao_emergencia and rnd(1.0) > capacidade_orientacao) {
-			visitante vizinho <- one_of(visitante at_distance 20.0);
+			visitante vizinho <- one_of((visitante at_distance 20.0) where (each.setor_atual = self.setor_atual));
 			if (vizinho != nil and vizinho.alvo_saida != nil and vizinho.alvo_saida.status = "Aberta") {
 				alvo_saida <- vizinho.alvo_saida;
 				return;
 			}
 		}
 
-		// Caso padrão: escolher a saída aberta mais próxima geograficamente
-		alvo_saida <- saidas_disponiveis with_min_of (self distance_to each);
+		// Caso padrão: escolher a saída externa aberta mais próxima pela rota (direta ou via passagem entre setores)
+		alvo_saida <- saidas_disponiveis with_min_of (self.distancia_ate_saida(each));
 	}
 
-	// Movimento e Resolução de Gargalos
+	// Movimento, Travessia entre Setores e Resolução de Gargalos
 	reflex mover when: alvo_saida != nil and alvo_saida.status = "Aberta" {
 		// Checar se já reagiu
 		if (time < tempo_reacao and blackout_ativo and not iluminacao_emergencia) {
 			return;
 		}
 
+		// Ajuste de velocidade pela densidade local (relação de Weidmann)
+		int vizinhos_aglomerados <- length(visitante at_distance 8.0);
+		float fator_densidade <- 1.0;
+		if (vizinhos_aglomerados > 4) {
+			fator_densidade <- max(0.25, 1.0 - (vizinhos_aglomerados * 0.08));
+		}
+
+		// Efeito da visibilidade (blackout reduz a velocidade em até 40% se não houver iluminação de emergência)
+		float fator_iluminacao <- 1.0;
+		if (blackout_ativo and not iluminacao_emergencia) {
+			fator_iluminacao <- 0.65;
+		}
+
+		speed <- velocidade_base * fator_densidade * fator_iluminacao;
+
+		// CASO 1: A saída alvo está em outro setor -> deve atravessar a porta de passagem entre os setores
+		if (alvo_saida.setor_ref != setor_atual) {
+			int idx_orig <- ordem_setor[setor_atual];
+			int idx_dest <- ordem_setor[alvo_saida.setor_ref];
+			int idx_prox <- (idx_orig < idx_dest) ? (idx_orig + 1) : (idx_orig - 1);
+			string proximo_setor <- setores_ordenados[idx_prox];
+
+			porta_alvo <- first(passagem where (
+				each.status = "Aberta" and (
+					(each.setor_a = setor_atual and each.setor_b = proximo_setor) or
+					(each.setor_b = setor_atual and each.setor_a = proximo_setor)
+				)
+			));
+
+			if (porta_alvo = nil) {
+				alvo_saida <- nil;
+				return;
+			}
+
+			float dist_porta <- self distance_to porta_alvo;
+
+			// Chegada à porta de passagem entre setores
+			if (dist_porta <= 12.0) {
+				if (porta_alvo.ocupacao_atual < porta_alvo.capacidade_vazao) {
+					porta_alvo.ocupacao_atual <- porta_alvo.ocupacao_atual + 1;
+					porta_alvo.total_passagens <- porta_alvo.total_passagens + 1;
+
+					// Transição física através da porta usando o sistema de coordenadas nativo do GAMA
+					setor geom_prox_setor <- first(setor where (each.id_setor = proximo_setor));
+					float dir_y <- 1.0;
+					if (geom_prox_setor != nil) {
+						dir_y <- (geom_prox_setor.location.y > porta_alvo.location.y) ? 1.0 : -1.0;
+					}
+
+					location <- {porta_alvo.location.x + rnd(-6.0, 6.0), porta_alvo.location.y + (dir_y * 28.0)};
+					setor_atual <- proximo_setor;
+					porta_alvo <- nil;
+					esperando_no_portao <- false;
+					return;
+				} else {
+					// Gargalo na passagem entre setores (fila na porta interna)
+					esperando_no_portao <- true;
+					ciclos_impedidos <- ciclos_impedidos + 1;
+					return;
+				}
+			}
+
+			esperando_no_portao <- false;
+			do goto target: porta_alvo.location speed: speed;
+			return;
+		}
+
+		// CASO 2: A saída alvo está no próprio setor atual -> desloca-se até a saída externa
+		porta_alvo <- nil;
 		float dist <- self distance_to alvo_saida;
 
-		// Chegada ao portão de saída
+		// Chegada ao portão de saída externa
 		if (dist <= 12.0) {
 			// Resolução de gargalo / capacidade de vazão do portão
 			if (alvo_saida.ocupacao_atual < alvo_saida.capacidade_vazao) {
-				// Efetiva a passagem pelo portão
+				// Efetiva a passagem pelo portão externo
 				alvo_saida.ocupacao_atual <- alvo_saida.ocupacao_atual + 1;
 				
 				// Atualizar registros
@@ -437,25 +609,10 @@ species visitante skills: [moving] {
 			}
 		}
 
-		// Agente em trânsito
+		// Agente em trânsito dentro do setor da saída
 		esperando_no_portao <- false;
 
-		// Ajuste de velocidade pela densidade local (relação de Weidmann)
-		int vizinhos_aglomerados <- length(visitante at_distance 8.0);
-		float fator_densidade <- 1.0;
-		if (vizinhos_aglomerados > 4) {
-			fator_densidade <- max(0.25, 1.0 - (vizinhos_aglomerados * 0.08));
-		}
-
-		// Efeito da visibilidade (blackout reduz a velocidade em até 40% se não houver iluminação de emergência)
-		float fator_iluminacao <- 1.0;
-		if (blackout_ativo and not iluminacao_emergencia) {
-			fator_iluminacao <- 0.65;
-		}
-
-		speed <- velocidade_base * fator_densidade * fator_iluminacao;
-
-		// Deslocamento direcionado à saída
+		// Deslocamento direcionado à saída externa
 		do goto target: alvo_saida.location speed: speed;
 	}
 
@@ -494,6 +651,7 @@ experiment Evacuacao_Oktoberfest type: gui {
 		
 		    species obstaculo aspect: padrao refresh: false;
 		    species caminho aspect: padrao refresh: false;
+		    species passagem aspect: padrao;
 		    species saida aspect: padrao;
 		    species staff aspect: padrao;
 		}

@@ -17,7 +17,8 @@ simulacao-vila-germanica/
 │   ├── pvg_geometrias.*          # Linhas e plantas arquiteturais originais do PVG
 │   ├── pvg_textos.*              # Textos e marcos espaciais identificados no AutoCAD
 │   ├── setores.*                 # Polígonos dos pavilhões (Setor 1, Setor 2, Setor 3, Setor 4)
-│   ├── saidas.*                  # Portões de saída categorizados (S1 a S6 e emergências)
+│   ├── saidas.*                  # Portões de saída externa do parque (S1 a S6 e emergências)
+│   ├── passagens.*               # Portas de passagem interna entre os setores (P1 a P3)
 │   ├── caminhos.*                # Vias e eixos principais de circulação interna
 │   ├── visitantes.csv            # Tabela sintética de população (3.000 agentes parametrizados)
 │   └── PREVIA_geometrias_extraidas.png
