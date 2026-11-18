@@ -1,0 +1,8 @@
+mesa>=3.5
+mesa-llm>=0.3.2
+numpy
+pandas
+matplotlib
+python-dotenv
+starlette
+uvicorn

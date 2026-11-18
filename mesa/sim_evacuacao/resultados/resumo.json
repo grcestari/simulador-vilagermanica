@@ -1,0 +1,92 @@
+{
+  "ocupantes": 300,
+  "seguros": 300,
+  "t_50%_s": 101.5,
+  "t_90%_s": 189.0,
+  "t_ultimo_s": 256.0,
+  "t_inicio_evacuacao_medio_s": 20.59548611111111,
+  "saidas": {
+    "S1": 87,
+    "S2": 110,
+    "S3": 103
+  },
+  "conflitos": 233,
+  "trocas_de_alvo": 202,
+  "agentes_llm": 0,
+  "chamadas_llm": 0,
+  "respostas_llm_invalidas": 0,
+  "por_tipo": {
+    "T01": {
+      "nome": "Adulto sóbrio",
+      "n": 138,
+      "t_seguro_medio_s": 101.3,
+      "t_seguro_max_s": 256.0
+    },
+    "T02": {
+      "nome": "Álcool: comprometimento moderado",
+      "n": 36,
+      "t_seguro_medio_s": 108.9,
+      "t_seguro_max_s": 210.5
+    },
+    "T03": {
+      "nome": "Álcool: comprometimento acentuado",
+      "n": 15,
+      "t_seguro_medio_s": 109.7,
+      "t_seguro_max_s": 249.0
+    },
+    "T04": {
+      "nome": "Criança",
+      "n": 15,
+      "t_seguro_medio_s": 128.8,
+      "t_seguro_max_s": 190.5
+    },
+    "T05": {
+      "nome": "Pessoa idosa autônoma",
+      "n": 24,
+      "t_seguro_medio_s": 111.8,
+      "t_seguro_max_s": 212.5
+    },
+    "T06": {
+      "nome": "Mobilidade reduzida",
+      "n": 9,
+      "t_seguro_medio_s": 131.6,
+      "t_seguro_max_s": 198.0
+    },
+    "T07": {
+      "nome": "Pessoa em cadeira de rodas",
+      "n": 6,
+      "t_seguro_medio_s": 105.7,
+      "t_seguro_max_s": 157.0
+    },
+    "T08": {
+      "nome": "Pessoa com baixa visão",
+      "n": 9,
+      "t_seguro_medio_s": 97.7,
+      "t_seguro_max_s": 153.5
+    },
+    "T09": {
+      "nome": "Pessoa com deficiência auditiva",
+      "n": 9,
+      "t_seguro_medio_s": 138.3,
+      "t_seguro_max_s": 190.5
+    },
+    "T10": {
+      "nome": "Necessidade de apoio à orientação",
+      "n": 9,
+      "t_seguro_medio_s": 88.9,
+      "t_seguro_max_s": 189.5
+    },
+    "T11": {
+      "nome": "Acompanhante / cuidador",
+      "n": 12,
+      "t_seguro_medio_s": 104.4,
+      "t_seguro_max_s": 186.5
+    },
+    "T12": {
+      "nome": "Funcionário / brigadista",
+      "n": 18,
+      "t_seguro_medio_s": 94.1,
+      "t_seguro_max_s": 208.0
+    }
+  }
+}

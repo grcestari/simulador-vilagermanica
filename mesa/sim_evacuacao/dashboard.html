@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simulador Vila Germânica — Dashboard Agêntico (Mesa + Mesa-LLM)</title>
+<style>
+  :root {
+    --bg: #0b101b;
+    --panel: #131b2e;
+    --panel-alt: #18233c;
+    --border: #263554;
+    --text: #e6edf7;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --green: #22c55e;
+    --amber: #f59e0b;
+    --red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    min-height: 100vh;
+  }
+  header {
+    background: linear-gradient(90deg, #0f172a 0%, #172542 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-badge {
+    background: rgba(56, 189, 248, 0.14);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.04em;
+  }
+  .brand h1 {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .brand small {
+    color: var(--muted);
+    font-size: 11px;
+    display: block;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+  .ctrl-group label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  select, input[type="number"] {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+  input[type="number"] { width: 58px; }
+  button {
+    background: var(--panel-alt);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  button:hover { border-color: var(--accent); background: #1e2d4d; }
+  button.primary {
+    background: #0284c7;
+    border-color: #38bdf8;
+    color: #fff;
+  }
+  button.primary.running {
+    background: #d97706;
+    border-color: #fbbf24;
+  }
+  button.exp {
+    background: rgba(34, 197, 94, 0.16);
+    border-color: rgba(34, 197, 94, 0.5);
+    color: #86efac;
+  }
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    padding: 10px 16px;
+  }
+  .kpi {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .kpi-title {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .kpi-val {
+    font-size: 22px;
+    font-weight: 800;
+    margin: 3px 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi-sub {
+    color: var(--muted);
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .bar-bg {
+    height: 6px;
+    background: #090d16;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 5px;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #38bdf8, #22c55e);
+    width: 0%;
+    transition: width 0.2s;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 1.45fr 1fr;
+    gap: 12px;
+    padding: 0 16px 16px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+  .card-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .card-title {
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .canvas-wrap {
+    position: relative;
+    background: #070b12;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+  }
+  #mapaCanvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    cursor: crosshair;
+  }
+  .density-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: #0c1322;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+  }
+  .density-scale {
+    flex: 1;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(90deg, #15803d 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #dc2626 100%);
+  }
+  .actors-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .actor-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 5px 8px;
+    background: #0e1627;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .actor-pill:hover, .actor-pill.active {
+    border-color: var(--accent);
+    background: #172440;
+  }
+  .actor-pill.dimmed { opacity: 0.35; }
+  .swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.25);
+  }
+  .actor-name {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+  .actor-stats {
+    font-size: 10px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .inspector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin: 6px 0;
+  }
+  .kv {
+    background: #0d1424;
+    padding: 5px 8px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .kv span { color: var(--muted); font-size: 10px; display: block; }
+  .kv strong { font-size: 12px; }
+  .profile-bars {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin: 6px 0;
+  }
+  .pbar {
+    background: #0d1424;
+    padding: 4px 8px;
+    border-radius: 5px;
+  }
+  .pbar-top { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+  .feed-list {
+    max-height: 195px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .feed-item {
+    background: #0d1424;
+    border-left: 3px solid var(--accent);
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .feed-item:hover { background: #152038; }
+  .badge-llm {
+    background: #7c3aed;
+    color: #fff;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 8, 15, 0.82);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    padding: 20px;
+  }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-width: 980px;
+    width: 100%;
+    padding: 16px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  table.exp-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 12px;
+  }
+  table.exp-table th, table.exp-table td {
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    text-align: left;
+  }
+  table.exp-table th { background: #0d1424; color: var(--muted); }
+  @media (max-width: 1100px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .layout { grid-template-columns: 1fr; }
+    .actors-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-badge">MESA + MESA-LLM</span>
+    <div>
+      <h1>Parque Vila Germânica — Simulação Agêntica de Evacuação em Blackout</h1>
+      <small id="subtituloCenario">Carregando cenário...</small>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="ctrl-group">
+      <label for="selCenario">Cenário (2×2):</label>
+      <select id="selCenario">
+        <option value="C1">C1 · Controle (Luz Emergência + 3 Saídas)</option>
+        <option value="C2" selected>C2 · Blackout Total (Escuro + 3 Saídas)</option>
+        <option value="C3">C3 · Saída S2 Bloqueada (Luz Emergência)</option>
+        <option value="C4">C4 · Crítico (Blackout Total + S2 Bloqueada)</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label for="inpN">Ocupantes:</label>
+      <input id="inpN" type="number" min="20" max="600" step="10" value="300" />
+      <label for="inpLLM">LLM:</label>
+      <input id="inpLLM" type="number" min="0" max="24" step="1" value="0" title="Nº de agentes controlados via Mesa-LLM" />
+      <label for="inpSeed">Seed:</label>
+      <input id="inpSeed" type="number" min="1" max="9999" value="42" />
+    </div>
+    <button id="btnPlay" class="primary" onclick="togglePlay()">▶ Executar</button>
+    <button onclick="passoManual(1)">⏭ +0.5s</button>
+    <button onclick="passoManual(20)">⏩ +10s</button>
+    <button onclick="rodarAteFim()">🏁 Fim</button>
+    <button onclick="reiniciar()">🔄 Reiniciar</button>
+    <div class="ctrl-group">
+      <label for="selVel">Vel:</label>
+      <select id="selVel">
+        <option value="1">1× (0.5s/tick)</option>
+        <option value="2" selected>2× (1.0s/tick)</option>
+        <option value="5">5× (2.5s/tick)</option>
+        <option value="10">10× (5.0s/tick)</option>
+      </select>
+    </div>
+    <button class="exp" onclick="abrirModal2x2()">📊 Comparar 2×2 (C1–C4)</button>
+  </div>
+</header>
+
+<section class="kpis">
+  <div class="kpi">
+    <div class="kpi-title"><span>Tempo de Simulação</span><span id="statusTag" style="color:var(--accent)">PRONTO</span></div>
+    <div class="kpi-val" id="kpiTempo">00:00.0</div>
+    <div class="kpi-sub"><span id="kpiSteps">Passo 0</span><span id="kpiFluxo">Fluxo: 0.0 ped/min</span></div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-title"><span>Pessoas Evacuadas</span><span id="kpiPct">0.0%</span></div>
+    <div class="kpi-val" id="kpiEvacuados">0 / 300</div>
+    <div class="bar-bg"><div class="bar-fill" id="barEvacuados"></div></div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-title"><span>Nível de Congestão</span><span id="kpiCongestaoNivel" style="color:var(--green)">BAIXA</span></div>
+    <div class="kpi-val" id="kpiDensidade">0.00 ped/m²</div>
+    <div class="kpi-sub"><span id="kpiRetidos">Retidos: 0</span><span id="kpiConflitos">Conflitos: 0</span></div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-title"><span>Tempo de Evacuação</span><span>Mediana / Média</span></div>
+    <div class="kpi-val" id="kpiTempoMediano">-- s</div>
+    <div class="kpi-sub"><span id="kpiTempoMedio">Média: -- s</span><span id="kpiTrocas">Trocas de alvo: 0</span></div>
+  </div>
+
+  <div class="kpi">
+    <div class="kpi-title"><span>Risco Percebido (EDM)</span><span>Limiar R_I=0.30 | R_E=0.60</span></div>
+    <div class="kpi-val" id="kpiRisco">0.000</div>
+    <div class="bar-bg">
+      <div class="bar-fill" id="barRisco" style="background:linear-gradient(90deg,#3b82f6,#f59e0b,#ef4444)"></div>
+    </div>
+  </div>
+</section>
+
+<main class="layout">
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🗺️ Planta Física do Pavilhão (Zona Cega 36m × 24m · Células 0.4m × 0.4m)</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <label style="color:var(--muted); font-size:11px;">Cor dos Agentes:</label>
+          <select id="selCorAgente" onchange="desenharTudo()">
+            <option value="tipo" selected>Tipologia de Atores (T01–T12)</option>
+            <option value="estado">Estado Comportamental (Normal/Inv./Evac.)</option>
+            <option value="alvo">Saída-Alvo Escolhida (S1 / S2 / S3)</option>
+          </select>
+          <label style="color:var(--muted); font-size:11px;">Mapa de Calor:</label>
+          <select id="selCamada" onchange="desenharTudo()">
+            <option value="densidade" selected>Densidade Local (pessoas/m²)</option>
+            <option value="gargalos">Gargalos Acumulados (Retenção)</option>
+            <option value="campoS">Campo Geodésico S_ij (Distância)</option>
+            <option value="nenhum">Somente Planta Física</option>
+          </select>
+          <label style="font-size:11px; color:var(--muted); cursor:pointer;">
+            <input type="checkbox" id="chkVetores" checked onchange="desenharTudo()" /> Vetores
+          </label>
+        </div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="mapaCanvas" width="900" height="600"></canvas>
+      </div>
+
+      <div class="density-bar">
+        <strong>DENSIDADE (pessoas/m²):</strong>
+        <span>0 (Livre)</span>
+        <div class="density-scale"></div>
+        <span>5.5+ (Colapso / Jamming)</span>
+        <span style="color:var(--muted)">| Clique em um agente para inspecionar</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">👥 Atores da Simulação (Tipologia T01–T12 · Clique para filtrar no mapa)</div>
+        <button onclick="filtrarTipo(null)" style="padding:2px 8px; font-size:11px;">Mostrar Todos</button>
+      </div>
+      <div id="gridAtores" class="actors-grid"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🔍 Inspetor de Agente & Perfil Decisório (PROMPT_EVACUACAO_V8)</div>
+        <span id="inspBadge" style="font-size:11px; color:var(--muted);">Clique em um ocupante no mapa</span>
+      </div>
+      <div id="inspConteudo">
+        <div class="inspector-grid">
+          <div class="kv"><span>Agente / Tipo</span><strong id="insNome">--</strong></div>
+          <div class="kv"><span>Papel / Estado</span><strong id="insEstado">--</strong></div>
+          <div class="kv"><span>Saída Familiar → Alvo Atual</span><strong id="insAlvo">--</strong></div>
+          <div class="kv"><span>Risco R_i(t) / Densidade Local</span><strong id="insRisco">--</strong></div>
+        </div>
+        <div class="profile-bars" id="insBarras"></div>
+        <div id="insOpcoes" style="font-size:11px; color:var(--muted); margin-top:4px;"></div>
+        <div id="insMemoria" style="font-size:11px; margin-top:6px; background:#090e1a; padding:6px 8px; border-radius:5px; border:1px solid var(--border);">
+          Selecione um agente no mapa ou no feed abaixo para ver suas opções observadas e justificativa de escolha de saída.
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📈 Evolução dos Estados Comportamentais e Fluxo por Porta</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <canvas id="chartEstados" width="340" height="175" style="width:100%; background:#080d18; border-radius:6px; border:1px solid var(--border);"></canvas>
+        <canvas id="chartPortas" width="340" height="175" style="width:100%; background:#080d18; border-radius:6px; border:1px solid var(--border);"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🧠 Feed de Decisões dos Agentes (`saida` + `justificativa`)</div>
+        <span style="font-size:11px; color:var(--muted);">Últimas escolhas registradas</span>
+      </div>
+      <div id="feedDecisoes" class="feed-list"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Modal Plano Experimental 2x2 (Slide 13) -->
+<div id="modal2x2" class="modal-backdrop">
+  <div class="modal">
+    <div class="card-header">
+      <div class="card-title">📊 Plano Experimental 2×2 — Blackout e Evacuação na Oktoberfest (Aula 14 · Slide 13)</div>
+      <button onclick="fecharModal2x2()">✖ Fechar</button>
+    </div>
+    <p style="color:var(--muted); font-size:12px; margin-bottom:8px;">
+      Compara os 4 cenários combinando <strong>Iluminação</strong> (Emergência vs. Blackout Total) × <strong>Saídas Disponíveis</strong> (Todas vs. Porta S2 Bloqueada).
+    </p>
+    <div id="status2x2" style="margin:8px 0; color:var(--accent); font-weight:600;"></div>
+    <table class="exp-table" id="tabela2x2">
+      <thead>
+        <tr>
+          <th>Cenário</th>
+          <th>Mediana t_50% (s)</th>
+          <th>t_90% (s)</th>
+          <th>Tempo Total t_fim (s)</th>
+          <th>Fluxo Médio (ped/min)</th>
+          <th>Conflitos</th>
+          <th>Saídas (S1 / S2 / S3)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <canvas id="chart2x2" width="900" height="240" style="width:100%; background:#080d18; border-radius:6px; border:1px solid var(--border); margin-top:8px;"></canvas>
+  </div>
+</div>
+
+<script>
+let ESTATICO = null;
+let ESTADO = null;
+let timerPlay = null;
+let filtroTipo = null;
+let agenteSelecionadoId = null;
+let emRequisicao = false;
+
+const COR_ESTADO = { 0: "#3b82f6", 1: "#f59e0b", 2: "#ef4444", 3: "#22c55e" };
+const COR_ALVO = { "S1": "#38bdf8", "S2": "#a855f7", "S3": "#22c55e" };
+
+function formatarTempo(seg) {
+  const m = Math.floor(seg / 60);
+  const s = (seg % 60).toFixed(1).padStart(4, "0");
+  return `${String(m).padStart(2, "0")}:${s}`;
+}
+
+async function inicializar() {
+  const r = await fetch("/api/init");
+  const d = await r.json();
+  ESTATICO = d.estatico;
+  ESTADO = d.estado;
+  atualizarUI();
+}
+
+async function passoManual(n) {
+  if (emRequisicao) return;
+  emRequisicao = true;
+  try {
+    const r = await fetch("/api/step", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passos: n, ate_fim: false })
+    });
+    ESTADO = await r.json();
+    atualizarUI();
+    if (!ESTADO.running && timerPlay) togglePlay(false);
+  } finally {
+    emRequisicao = false;
+  }
+}
+
+async function rodarAteFim() {
+  if (timerPlay) togglePlay(false);
+  document.getElementById("statusTag").textContent = "PROCESSANDO...";
+  const r = await fetch("/api/step", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ passos: 1, ate_fim: true })
+  });
+  ESTADO = await r.json();
+  atualizarUI();
+}
+
+function togglePlay(forcar) {
+  const btn = document.getElementById("btnPlay");
+  const ligar = forcar !== undefined ? forcar : (timerPlay === null);
+  if (!ligar) {
+    clearInterval(timerPlay);
+    timerPlay = null;
+    btn.textContent = "▶ Executar";
+    btn.classList.remove("running");
+    return;
+  }
+  btn.textContent = "⏸ Pausar";
+  btn.classList.add("running");
+  timerPlay = setInterval(() => {
+    const vel = parseInt(document.getElementById("selVel").value || "2", 10);
+    passoManual(vel);
+  }, 180);
+}
+
+async function reiniciar() {
+  if (timerPlay) togglePlay(false);
+  const payload = {
+    cenario: document.getElementById("selCenario").value,
+    n_ocupantes: parseInt(document.getElementById("inpN").value || "300", 10),
+    n_llm: parseInt(document.getElementById("inpLLM").value || "0", 10),
+    seed: parseInt(document.getElementById("inpSeed").value || "42", 10),
+  };
+  const r = await fetch("/api/reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const d = await r.json();
+  ESTATICO = d.estatico;
+  ESTADO = d.estado;
+  agenteSelecionadoId = null;
+  atualizarUI();
+}
+
+function filtrarTipo(cod) {
+  filtroTipo = (filtroTipo === cod) ? null : cod;
+  atualizarGradeAtores();
+  desenharMapa();
+}
+
+function atualizarUI() {
+  if (!ESTADO || !ESTATICO) return;
+  document.getElementById("subtituloCenario").textContent = ESTADO.titulo_cenario;
+  document.getElementById("kpiTempo").textContent = formatarTempo(ESTADO.t);
+  document.getElementById("kpiSteps").textContent = `Passo ${ESTADO.steps}`;
+  document.getElementById("kpiFluxo").textContent = `Fluxo: ${ESTADO.fluxo_ped_min.toFixed(1)} ped/min`;
+
+  const st = document.getElementById("statusTag");
+  st.textContent = ESTADO.running ? (timerPlay ? "EM EXECUÇÃO" : "PAUSADO") : "CONCLUÍDA";
+  st.style.color = ESTADO.running ? "var(--accent)" : "var(--green)";
+
+  const pct = (100 * ESTADO.n_seguros / Math.max(1, ESTADO.n_total)).toFixed(1);
+  document.getElementById("kpiPct").textContent = `${pct}%`;
+  document.getElementById("kpiEvacuados").textContent = `${ESTADO.n_seguros} / ${ESTADO.n_total}`;
+  document.getElementById("barEvacuados").style.width = `${pct}%`;
+
+  document.getElementById("kpiDensidade").textContent = `${ESTADO.rho_p90.toFixed(2)} ped/m²`;
+  document.getElementById("kpiRetidos").textContent = `Retidos: ${ESTADO.retidos}`;
+  document.getElementById("kpiConflitos").textContent = `Conflitos: ${ESTADO.conflitos}`;
+  const congEl = document.getElementById("kpiCongestaoNivel");
+  if (ESTADO.rho_p90 >= 3.5) { congEl.textContent = "CRÍTICA"; congEl.style.color = "var(--red)"; }
+  else if (ESTADO.rho_p90 >= 1.8) { congEl.textContent = "ALTA"; congEl.style.color = "var(--amber)"; }
+  else if (ESTADO.rho_p90 >= 0.7) { congEl.textContent = "MODERADA"; congEl.style.color = "#eab308"; }
+  else { congEl.textContent = "BAIXA"; congEl.style.color = "var(--green)"; }
+
+  document.getElementById("kpiTempoMediano").textContent = ESTADO.t_mediano !== null ? `${ESTADO.t_mediano} s` : "-- s";
+  document.getElementById("kpiTempoMedio").textContent = `Média: ${ESTADO.t_medio !== null ? ESTADO.t_medio + " s" : "-- s"}`;
+  document.getElementById("kpiTrocas").textContent = `Trocas de alvo: ${ESTADO.trocas_alvo}`;
+
+  document.getElementById("kpiRisco").textContent = ESTADO.risco_medio.toFixed(3);
+  document.getElementById("barRisco").style.width = `${Math.min(100, ESTADO.risco_medio * 100)}%`;
+
+  atualizarGradeAtores();
+  atualizarFeed();
+  desenharTudo();
+  if (agenteSelecionadoId !== null) carregarDetalheAgente(agenteSelecionadoId);
+}
+
+function atualizarGradeAtores() {
+  const g = document.getElementById("gridAtores");
+  g.innerHTML = "";
+  for (const [cod, info] of Object.entries(ESTATICO.tipos)) {
+    const st = ESTADO.por_tipo[cod] || { ativos: 0, seguros: 0, total: 0, t_medio: null };
+    const div = document.createElement("div");
+    div.className = "actor-pill" + (filtroTipo === cod ? " active" : (filtroTipo && filtroTipo !== cod ? " dimmed" : ""));
+    div.onclick = () => filtrarTipo(cod);
+    div.innerHTML = `
+      <span class="swatch" style="background:${info.cor}"></span>
+      <span class="actor-name" title="${cod} ${info.nome}"><strong>${cod}</strong> ${info.nome}</span>
+      <span class="actor-stats">${st.seguros}/${st.total}${st.t_medio ? " · " + st.t_medio + "s" : ""}</span>
+    `;
+    g.appendChild(div);
+  }
+}
+
+function atualizarFeed() {
+  const el = document.getElementById("feedDecisoes");
+  el.innerHTML = "";
+  if (!ESTADO.decisoes.length) {
+    el.innerHTML = `<div style="color:var(--muted); font-size:11px;">Nenhuma decisão de saída tomada ainda (ocupantes em fase Normal/Investigação).</div>`;
+    return;
+  }
+  for (const d of ESTADO.decisoes) {
+    const item = document.createElement("div");
+    item.className = "feed-item";
+    item.style.borderLeftColor = d.cor;
+    item.onclick = () => selecionarAgente(d.id);
+    item.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span><strong>#${d.id}</strong> (${d.tipo} ${d.tipo_nome}) ${d.llm ? '<span class="badge-llm">MESA-LLM</span>' : ''}</span>
+        <span style="color:var(--accent); font-weight:700;">→ ${d.alvo || ("Opção " + d.saida_idx)} (t=${d.t_s}s)</span>
+      </div>
+      <div style="color:var(--muted); margin-top:2px;">"${d.justificativa}"</div>
+    `;
+    el.appendChild(item);
+  }
+}
+
+function corDensidade(rho) {
+  const t = Math.min(1, rho / 5.5);
+  if (t <= 0.02) return null;
+  const r = Math.round(34 + 205 * t);
+  const g = Math.round(197 * (1 - t * 0.85));
+  const b = Math.round(40 * (1 - t));
+  return `rgba(${r},${g},${b},${0.18 + 0.55 * t})`;
+}
+
+function desenharTudo() {
+  desenharMapa();
+  desenharGraficoEstados();
+  desenharGraficoPortas();
+}
+
+function desenharMapa() {
+  if (!ESTATICO || !ESTADO) return;
+  const cv = document.getElementById("mapaCanvas");
+  const ctx = cv.getContext("2d");
+  const W = ESTATICO.largura, H = ESTATICO.altura;
+  const cw = cv.width / W, ch = cv.height / H;
+  const camada = document.getElementById("selCamada").value;
+  const modoCor = document.getElementById("selCorAgente").value;
+  const mostrarVetores = document.getElementById("chkVetores").checked;
+
+  ctx.fillStyle = "#0a0f1c";
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  // 1. Piso do pavilhão e camada de calor
+  let maxGargalo = 1;
+  if (camada === "gargalos") {
+    for (let x = 0; x < W; x++)
+      for (let y = 0; y < H; y++)
+        if (ESTADO.calor_parado[x][y] > maxGargalo) maxGargalo = ESTADO.calor_parado[x][y];
+  }
+
+  for (let x = 0; x < W; x++) {
+    for (let y = 0; y < H; y++) {
+      const py = H - 1 - y;
+      if (ESTATICO.bloqueado[x][y]) {
+        ctx.fillStyle = "#2b364f";
+        ctx.fillRect(x * cw, py * ch, cw + 0.5, ch + 0.5);
+        continue;
+      }
+      ctx.fillStyle = ESTATICO.interior[x][y] ? "#111a2e" : "#0b1320";
+      ctx.fillRect(x * cw, py * ch, cw + 0.5, ch + 0.5);
+
+      if (camada === "gargalos" && ESTADO.calor_parado[x][y] > 0) {
+        const k = Math.min(1, ESTADO.calor_parado[x][y] / maxGargalo);
+        ctx.fillStyle = `rgba(239, 68, 68, ${0.15 + 0.75 * k})`;
+        ctx.fillRect(x * cw, py * ch, cw + 0.5, ch + 0.5);
+      } else if (camada === "campoS" && ESTATICO.campo_S[x][y] >= 0) {
+        const k = Math.min(1, ESTATICO.campo_S[x][y] / 32.0);
+        ctx.fillStyle = `rgba(56, 189, 248, ${0.42 * (1 - k)})`;
+        ctx.fillRect(x * cw, py * ch, cw + 0.5, ch + 0.5);
+      }
+    }
+  }
+
+  // Halo de densidade local por agente
+  if (camada === "densidade") {
+    for (const ag of ESTADO.agentes) {
+      const c = corDensidade(ag.rho);
+      if (!c) continue;
+      const cx = (ag.x + 0.5) * cw;
+      const cy = (H - 0.5 - ag.y) * ch;
+      ctx.fillStyle = c;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cw * 2.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 2. Portas abertas
+  ctx.font = "bold 12px Inter, sans-serif";
+  for (const [pid, cells] of Object.entries(ESTATICO.portas)) {
+    for (const [x, y] of cells) {
+      const py = H - 1 - y;
+      ctx.fillStyle = "#22c55e";
+      ctx.fillRect(x * cw, py * ch, cw + 1, ch + 1);
+    }
+    const [mx, my] = cells[Math.floor(cells.length / 2)];
+    const lx = (mx + (pid === "S3" ? -2.5 : 1.8)) * cw;
+    const ly = (H - 0.5 - my + (pid === "S3" ? -1.2 : 0.3)) * ch;
+    ctx.fillStyle = "#86efac";
+    ctx.fillText(`🚪 ${pid} (${ESTADO.portas[pid] || 0})`, lx, ly);
+  }
+
+  // Portas bloqueadas (C3 / C4)
+  for (const [pid, cells] of Object.entries(ESTATICO.portas_bloqueadas || {})) {
+    for (const [x, y] of cells) {
+      const py = H - 1 - y;
+      ctx.fillStyle = "#dc2626";
+      ctx.fillRect(x * cw, py * ch, cw + 1, ch + 1);
+    }
+    const [mx, my] = cells[Math.floor(cells.length / 2)];
+    ctx.fillStyle = "#fca5a5";
+    ctx.fillText(`✖ ${pid} BLOQUEADA`, (mx + 1.6) * cw, (H - 0.5 - my) * ch);
+  }
+
+  // 3. Agentes ocupantes
+  for (const ag of ESTADO.agentes) {
+    if (filtroTipo && ag.tipo !== filtroTipo) continue;
+    const cx = (ag.x + 0.5) * cw;
+    const cy = (H - 0.5 - ag.y) * ch;
+
+    let cor = ESTATICO.tipos[ag.tipo]?.cor || "#38bdf8";
+    if (modoCor === "estado") cor = COR_ESTADO[ag.estado] || "#3b82f6";
+    else if (modoCor === "alvo") cor = COR_ALVO[ag.alvo] || "#64748b";
+
+    if (mostrarVetores && ag.estado === 2) {
+      ctx.strokeStyle = "rgba(255,255,255,0.38)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + ag.hx * cw * 1.15, cy - ag.hy * ch * 1.15);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = cor;
+    ctx.beginPath();
+    ctx.arc(cx, cy, cw * 0.52, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (ag.llm) {
+      ctx.strokeStyle = "#fde047";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cw * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (ag.id === agenteSelecionadoId) {
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, cw * 1.15, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+
+document.getElementById("mapaCanvas").addEventListener("click", (ev) => {
+  if (!ESTATICO || !ESTADO) return;
+  const rect = ev.target.getBoundingClientRect();
+  const gx = ((ev.clientX - rect.left) / rect.width) * ESTATICO.largura;
+  const gy = ESTATICO.altura - ((ev.clientY - rect.top) / rect.height) * ESTATICO.altura;
+  let melhor = null, dMin = 999;
+  for (const ag of ESTADO.agentes) {
+    if (filtroTipo && ag.tipo !== filtroTipo) continue;
+    const d = Math.hypot(ag.x + 0.5 - gx, ag.y + 0.5 - gy);
+    if (d < dMin && d < 3.0) { dMin = d; melhor = ag; }
+  }
+  if (melhor) selecionarAgente(melhor.id);
+});
+
+async function selecionarAgente(id) {
+  agenteSelecionadoId = id;
+  await carregarDetalheAgente(id);
+  desenharMapa();
+}
+
+async function carregarDetalheAgente(id) {
+  const r = await fetch(`/api/agente?id=${id}`);
+  const d = await r.json();
+  if (d.erro) return;
+  document.getElementById("inspBadge").innerHTML =
+    `<span class="swatch" style="display:inline-block;vertical-align:middle;background:${d.cor}"></span> #${d.id} · ${d.llm ? '<span class="badge-llm">MESA-LLM</span>' : 'Agente Regras'}`;
+  document.getElementById("insNome").textContent = `${d.tipo} — ${d.tipo_nome}`;
+  document.getElementById("insEstado").textContent = `${d.papel} · ${d.estado}`;
+  document.getElementById("insAlvo").textContent = `${d.porta_familiar} → ${d.alvo_atual || "indefinido"} (${d.trocas_alvo} trocas)`;
+  document.getElementById("insRisco").textContent = `R=${d.R} · ρ=${d.rho} ped/m² · v=${d.v_i} m/s`;
+
+  const pb = document.getElementById("insBarras");
+  pb.innerHTML = "";
+  const nomes = {
+    aversao_aglomeracao: "Aversão à aglomeração",
+    preferencia_familiaridade: "Pref. familiaridade",
+    inercia_decisao: "Inércia de decisão",
+    cautela_incerteza: "Cautela sob incerteza"
+  };
+  for (const [k, label] of Object.entries(nomes)) {
+    const val = d.perfil_decisorio[k];
+    pb.innerHTML += `
+      <div class="pbar">
+        <div class="pbar-top"><span>${label}</span><strong>${val.toFixed(2)}</strong></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${val * 100}%"></div></div>
+      </div>`;
+  }
+
+  const ops = d.opcoes.map(o =>
+    `${o.nome}: dist=${o.distancia_m !== null ? o.distancia_m + "m" : "null"} | viz_alvo=${o.pessoas_locais_mesmo_alvo} | fam=${o.familiar}`
+  ).join("<br/>");
+  document.getElementById("insOpcoes").innerHTML = ops ? `<strong>Opções observadas:</strong><br/>${ops}` : "";
+
+  const mem = d.memoria.length
+    ? d.memoria.map(m => `[t=${m.t_s}s] saída=${m.saida} — "${m.justificativa}"`).join("<br/>")
+    : "Ainda não escolheu uma saída-alvo (aguardando estado Evacuação).";
+  document.getElementById("insMemoria").innerHTML = `<strong>Memória de Decisão:</strong><br/>${mem}`;
+}
+
+function desenharGraficoEstados() {
+  const cv = document.getElementById("chartEstados");
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const serie = ESTADO.serie;
+  if (!serie.length) return;
+  const pad = { l: 34, r: 10, t: 22, b: 22 };
+  const pw = cv.width - pad.l - pad.r, ph = cv.height - pad.t - pad.b;
+  const maxT = Math.max(10, serie[serie.length - 1].t);
+  const maxY = Math.max(1, ESTADO.n_total);
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "bold 11px Inter, sans-serif";
+  ctx.fillText("Estados Comportamentais (ocupantes × tempo)", pad.l, 14);
+
+  const linhas = [
+    { k: "Normal", c: "#3b82f6" },
+    { k: "Investigacao", c: "#f59e0b" },
+    { k: "Evacuacao", c: "#ef4444" },
+    { k: "Seguros", c: "#22c55e" }
+  ];
+  for (const ln of linhas) {
+    ctx.strokeStyle = ln.c;
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    serie.forEach((p, i) => {
+      const x = pad.l + (p.t / maxT) * pw;
+      const y = pad.t + ph - (p[ln.k] / maxY) * ph;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+
+function desenharGraficoPortas() {
+  const cv = document.getElementById("chartPortas");
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const serie = ESTADO.serie;
+  if (!serie.length) return;
+  const pad = { l: 34, r: 10, t: 22, b: 22 };
+  const pw = cv.width - pad.l - pad.r, ph = cv.height - pad.t - pad.b;
+  const maxT = Math.max(10, serie[serie.length - 1].t);
+  const portas = Object.keys(ESTATICO.portas);
+  let maxY = 10;
+  for (const p of serie)
+    for (const k of portas)
+      if ((p.Portas[k] || 0) > maxY) maxY = p.Portas[k];
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = "bold 11px Inter, sans-serif";
+  ctx.fillText("Saídas Acumuladas por Porta (S1 / S2 / S3)", pad.l, 14);
+
+  for (const k of portas) {
+    ctx.strokeStyle = COR_ALVO[k] || "#38bdf8";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    serie.forEach((p, i) => {
+      const x = pad.l + (p.t / maxT) * pw;
+      const y = pad.t + ph - ((p.Portas[k] || 0) / maxY) * ph;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+
+async function abrirModal2x2() {
+  document.getElementById("modal2x2").style.display = "flex";
+  const st = document.getElementById("status2x2");
+  st.textContent = "Executando os 4 cenários (C1, C2, C3 e C4)... aguarde ~3 segundos.";
+  const n = parseInt(document.getElementById("inpN").value || "300", 10);
+  const seed = parseInt(document.getElementById("inpSeed").value || "42", 10);
+  const r = await fetch("/api/comparar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ n_ocupantes: n, seed: seed })
+  });
+  const d = await r.json();
+  st.textContent = `Comparação concluída (${d.n_ocupantes} ocupantes, seed=${d.seed}).`;
+  const tb = document.querySelector("#tabela2x2 tbody");
+  tb.innerHTML = "";
+  for (const cod of ["C1", "C2", "C3", "C4"]) {
+    const c = d.cenarios[cod];
+    const s = c.saidas;
+    tb.innerHTML += `
+      <tr>
+        <td><strong>${c.titulo}</strong></td>
+        <td>${c.t_50} s</td>
+        <td>${c.t_90} s</td>
+        <td><strong>${c.t_ultimo} s</strong></td>
+        <td>${c.fluxo_medio_min}</td>
+        <td>${c.conflitos}</td>
+        <td>S1:${s.S1 || 0} | S2:${s.S2 || "BLOQ"} | S3:${s.S3 || 0}</td>
+      </tr>`;
+  }
+  desenharCurvas2x2(d.cenarios, d.n_ocupantes);
+}
+
+function fecharModal2x2() {
+  document.getElementById("modal2x2").style.display = "none";
+}
+
+function desenharCurvas2x2(cenarios, nTot) {
+  const cv = document.getElementById("chart2x2");
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  const cores = { C1: "#22c55e", C2: "#38bdf8", C3: "#f59e0b", C4: "#ef4444" };
+  const pad = { l: 44, r: 20, t: 26, b: 26 };
+  const pw = cv.width - pad.l - pad.r, ph = cv.height - pad.t - pad.b;
+  let maxT = 10;
+  for (const c of Object.values(cenarios))
+    if (c.t_ultimo > maxT) maxT = c.t_ultimo;
+
+  ctx.fillStyle = "#e6edf7";
+  ctx.font = "bold 12px Inter, sans-serif";
+  ctx.fillText("Curvas de Evacuação Comparadas (Ocupantes Seguros × Tempo)", pad.l, 16);
+
+  let lx = pad.l + 420;
+  for (const cod of ["C1", "C2", "C3", "C4"]) {
+    const c = cenarios[cod];
+    ctx.strokeStyle = cores[cod];
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    c.curva.forEach(([t, seg], i) => {
+      const x = pad.l + (t / maxT) * pw;
+      const y = pad.t + ph - (seg / nTot) * ph;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = cores[cod];
+    ctx.fillText(`${cod} (${c.t_ultimo}s)`, lx, 16);
+    lx += 110;
+  }
+}
+
+inicializar();
+</script>
+</body>
+</html>
