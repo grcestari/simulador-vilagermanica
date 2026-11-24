@@ -20,7 +20,8 @@ Além disso, implementa a **Tipologia de 12 Atores (`T01` a `T12`)** e o prompt 
 | Arquivo | Função no Sistema |
 |---|---|
 | `config.py` | Parâmetros físicos, cinemáticos e comportamentais calibrados ("Blackout Noturno") e definição dos 4 cenários do **Plano Experimental $2 \times 2$ (`C1`, `C2`, `C3`, `C4`)**. |
-| `cenario.py` | Construção da planta física do pavilhão em malha de células ($0{,}4\,\text{m} \times 0{,}4\,\text{m}$), paredes, pilares, estandes, portas (`S1`, `S2`, `S3`), cálculo do **Campo de Piso Estático ($S_{ij}$)** por Dijkstra e **Campo de Obstáculos ($O_{ij}$)** por BFS. |
+| `cenario.py` | Leitura de `../PVG_shapefile-20261123`, rasterização das geometrias do salão em malha de células ($0{,}4\,\text{m} \times 0{,}4\,\text{m}$), posicionamento das nove saídas perimetrais e cálculo dos campos de navegação. |
+| `../PVG_shapefile-20261123/` | Shapefiles de geometrias e textos usados pelo cenário do Mesa. A pasta precisa permanecer ao lado de `sim_evacuacao/`. |
 | `tipos.py` | Definição dos **12 tipos de atores (`T01`–`T12`)**, suas cores oficiais, proporções populacionais, parâmetros físicos controlados pelo motor e parâmetros do perfil decisório ($[0, 1]$). |
 | `decisao.py` | Prompt **`PROMPT_EVACUACAO_V8`** e schema Pydantic **`EscolhaSaida(saida, justificativa)`** que valida a resposta estruturada do LLM. |
 | `agentes.py` | Implementação do corpo físico/comportamental (`_OcupanteMixin`), do agente baseado em regras (`OcupanteRegras`) e do agente de IA (`OcupanteLLM`, subclasse de `mesa_llm.LLMAgent`). |
@@ -33,12 +34,12 @@ Além disso, implementa a **Tipologia de 12 Atores (`T01` a `T12`)** e o prompt 
 
 ### 1.2. Espaço Físico e Campos de Navegação (`cenario.py`)
 
-- **Malha Discreta (Multi-grid corporal)**: grade de $90 \times 60$ células de $0{,}4\,\text{m} \times 0{,}4\,\text{m}$ ($36\,\text{m} \times 24\,\text{m}$), representando o pavilhão interno (zona cega), obstáculos internos (8 estandes/balcões e 7 pilares $2 \times 2$) e área externa.
+- **Planta de origem**: o cenário lê `pvg_geometrias.shp` e `pvg_textos.shp` da pasta `PVG_shapefile-20261123`, no nível acima de `sim_evacuacao/`. As linhas arquitetônicas do recorte do salão principal são rasterizadas como paredes e obstáculos; os nove rótulos perimetrais `SAÍDA DE EMERGÊNCIA` geram as saídas `S1` a `S9`. A marcação interna não é tratada como uma porta.
+- **Malha Discreta (Multi-grid corporal)**: grade de $52 \times 122$ células, na mesma orientação vertical da planta, com borda de parede e área interna nominal de $50 \times 120$ células ($960\,\text{m}^2$) a $0{,}4\,\text{m} \times 0{,}4\,\text{m}$. A área interna aproxima os $964\,\text{m}^2$ indicados na planta.
+- **Limite de escala**: o shapefile usa coordenadas cartesianas locais, sem calibração geográfica. O formato do salão e os obstáculos vêm da planta; a conversão para metros continua seguindo a célula de $0{,}4\,\text{m}$ já adotada pelo modelo.
 - **Portas de Evacuação**:
-  - `S1`: Porta Leste 1 ($1{,}6\,\text{m}$ de largura)
-  - `S2`: Porta Leste 2 ($1{,}6\,\text{m}$ de largura — bloqueada nos cenários `C3` e `C4`)
-  - `S3`: Porta Norte ($1{,}6\,\text{m}$ de largura)
-- **Campo de Piso Estático ($S_{ij}$)**: distância geodésica em células até cada porta (`S1`, `S2`, `S3` e `todas`), calculada com algoritmo de Dijkstra desviando de paredes, pilares e estandes.
+  - `S1` a `S9`: saídas de emergência perimetrais marcadas na planta ($1{,}6\,\text{m}$ de largura no grid); `S2` continua bloqueada nos cenários `C3` e `C4`.
+- **Campo de Piso Estático ($S_{ij}$)**: distância geodésica em células até cada porta (`S1` a `S9` e `todas`), calculada com algoritmo de Dijkstra desviando das paredes e dos obstáculos rasterizados da planta.
 - **Campo de Obstáculos ($O_{ij}$)**: distância à parede/obstáculo mais próximo, usada para guiar o tateamento no escuro (*wall tracking* / tigmotaxia).
 
 ---
@@ -155,9 +156,9 @@ Para abrir o painel visual no navegador:
 O terminal exibirá `Dashboard iniciado em: http://127.0.0.1:8765` e abrirá o navegador automaticamente.
 
 **Recursos disponíveis no Dashboard:**
-- **Seletor de Cenário ($2 \times 2$)**: alterne entre `C1 (Controle)`, `C2 (Blackout Total)`, `C3 (Saída S2 Bloqueada)` e `C4 (Cenário Crítico)`.
+- **Seletor de Cenário ($2 \times 2$)**: alterne entre `C1 (Controle)`, `C2 (Blackout Total)`, `C3 (Saída S2 Bloqueada)` e `C4 (Cenário Crítico)`. A troca reinicia e aplica o cenário automaticamente; para comparar o movimento em `C1`/`C2`, inicie a simulação.
 - **Controles de Execução**: `▶ Executar / ⏸ Pausar`, `⏭ +0.5s`, `⏩ +10s`, `🏁 Fim`, `🔄 Reiniciar` e seletor de velocidade (`1×` a `10×`).
-- **Camadas Visuais do Mapa**: alterne a cor dos agentes entre **Tipologia (`T01`–`T12`)**, **Estado Comportamental** ou **Saída-Alvo (`S1`/`S2`/`S3`)**, e o mapa de calor entre **Densidade Local ($\text{pessoas/m}^2$)**, **Gargalos Acumulados** e **Campo Geodésico $S_{ij}$**.
+- **Camadas Visuais do Mapa**: alterne a cor dos agentes entre **Tipologia (`T01`–`T12`)**, **Estado Comportamental** ou **Saída-Alvo (`S1`–`S9`)**, e o mapa de calor entre **Densidade Local ($\text{pessoas/m}^2$)**, **Gargalos Acumulados** e **Campo Geodésico $S_{ij}$**.
 - **Filtro por Tipo (`T01`–`T12`)**: clique em qualquer um dos 12 tipos abaixo do mapa para destacar apenas os agentes daquele grupo.
 - **Inspetor de Agente (`PROMPT_EVACUACAO_V8`)**: clique sobre qualquer agente no mapa (ou no feed lateral) para ver suas opções observadas, perfil decisório e memória de justificativas.
 - **Botão `📊 Comparar 2×2 (C1–C4)`**: executa os 4 cenários do plano experimental e plota a tabela comparativa e as curvas de evacuação.

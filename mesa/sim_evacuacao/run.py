@@ -37,8 +37,18 @@ def desenhar(model, ax, titulo=""):
     for pid, cells in cen.portas.items():
         xs, ys = zip(*cells)
         ax.scatter(xs, ys, marker="s", s=14, c="#2ca02c")
-        ax.text(np.mean(xs) + (2 if pid != "S3" else -1), np.mean(ys) + (0 if pid != "S3" else 2),
-                pid, color="#2ca02c", fontsize=9, weight="bold")
+        cx, cy = np.mean(xs), np.mean(ys)
+        if cy >= cen.altura - 1:
+            tx, ty = cx + 1, cy - 2
+        elif cy <= 0:
+            tx, ty = cx + 1, cy + 2
+        elif cx <= 0:
+            tx, ty = cx + 2, cy
+        elif cx >= cen.largura - 1:
+            tx, ty = cx - 3, cy
+        else:
+            tx, ty = cx + 2, cy + 2
+        ax.text(tx, ty, pid, color="#2ca02c", fontsize=8, weight="bold")
     for est, cor in COR.items():
         pts = [a.pos for a in model.ocupacao.values() if a.estado == est]
         if pts:

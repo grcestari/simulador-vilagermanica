@@ -1,7 +1,7 @@
 r"""Dashboard visual interativo para a simulação de evacuação (Parque Vila Germânica).
 
 Executa um servidor web local (Starlette + Uvicorn) com visualização em tempo real:
-- Mapa espacial do pavilhão (células 0,4 x 0,4 m, paredes, pilares, estandes, portas S1-S3)
+    - Mapa espacial do pavilhão rasterizado a partir do shapefile (células 0,4 x 0,4 m, saídas da planta)
 - 12 tipos de atores (T01-T12) com filtro interativo e cores oficiais da legenda
 - Camadas de mapa de calor: Densidade (pessoas/m²), Gargalos e Campo de Piso Estático (S_ij)
 - Medidor de Congestão, Tempo de Evacuação, Risco Percebido (EDM) e Fluxo por Porta

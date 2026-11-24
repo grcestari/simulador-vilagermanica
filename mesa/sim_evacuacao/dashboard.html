@@ -205,8 +205,9 @@
     justify-content: center;
   }
   #mapaCanvas {
-    width: 100%;
-    height: auto;
+    width: auto;
+    height: min(75vh, 900px);
+    max-width: 100%;
     display: block;
     cursor: crosshair;
   }
@@ -372,12 +373,13 @@
   <div class="controls">
     <div class="ctrl-group">
       <label for="selCenario">Cenário (2×2):</label>
-      <select id="selCenario">
-        <option value="C1">C1 · Controle (Luz Emergência + 3 Saídas)</option>
-        <option value="C2" selected>C2 · Blackout Total (Escuro + 3 Saídas)</option>
+      <select id="selCenario" onchange="reiniciar()">
+        <option value="C1">C1 · Controle (Luz de Emergência + Todas as Saídas)</option>
+        <option value="C2" selected>C2 · Blackout Total (Todas as Saídas)</option>
         <option value="C3">C3 · Saída S2 Bloqueada (Luz Emergência)</option>
         <option value="C4">C4 · Crítico (Blackout Total + S2 Bloqueada)</option>
       </select>
+      <small style="display:block; max-width:260px; color:var(--muted); margin-top:3px;">Trocar reinicia; pressione Executar para ver a dinâmica. C3/C4 bloqueiam S2.</small>
     </div>
     <div class="ctrl-group">
       <label for="inpN">Ocupantes:</label>
@@ -449,7 +451,7 @@
           <select id="selCorAgente" onchange="desenharTudo()">
             <option value="tipo" selected>Tipologia de Atores (T01–T12)</option>
             <option value="estado">Estado Comportamental (Normal/Inv./Evac.)</option>
-            <option value="alvo">Saída-Alvo Escolhida (S1 / S2 / S3)</option>
+            <option value="alvo">Saída-Alvo Escolhida</option>
           </select>
           <label style="color:var(--muted); font-size:11px;">Mapa de Calor:</label>
           <select id="selCamada" onchange="desenharTudo()">
@@ -465,7 +467,7 @@
       </div>
 
       <div class="canvas-wrap">
-        <canvas id="mapaCanvas" width="900" height="600"></canvas>
+        <canvas id="mapaCanvas" width="385" height="900"></canvas>
       </div>
 
       <div class="density-bar">
@@ -547,7 +549,7 @@
           <th>Tempo Total t_fim (s)</th>
           <th>Fluxo Médio (ped/min)</th>
           <th>Conflitos</th>
-          <th>Saídas (S1 / S2 / S3)</th>
+          <th>Saídas por porta</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -565,7 +567,11 @@ let agenteSelecionadoId = null;
 let emRequisicao = false;
 
 const COR_ESTADO = { 0: "#3b82f6", 1: "#f59e0b", 2: "#ef4444", 3: "#22c55e" };
-const COR_ALVO = { "S1": "#38bdf8", "S2": "#a855f7", "S3": "#22c55e" };
+const CORES_ALVO = ["#38bdf8", "#a855f7", "#22c55e", "#f59e0b", "#ef4444", "#e879f9", "#14b8a6", "#f97316", "#84cc16", "#818cf8"];
+function corAlvo(pid) {
+  const match = /^S(\d+)$/.exec(pid || "");
+  return match ? CORES_ALVO[(parseInt(match[1], 10) - 1) % CORES_ALVO.length] : "#64748b";
+}
 
 function formatarTempo(seg) {
   const m = Math.floor(seg / 60);
@@ -630,6 +636,8 @@ function togglePlay(forcar) {
 
 async function reiniciar() {
   if (timerPlay) togglePlay(false);
+  const tituloSelecionado = document.getElementById("selCenario").selectedOptions[0]?.textContent || "cenário";
+  document.getElementById("subtituloCenario").textContent = `Aplicando ${tituloSelecionado}...`;
   const payload = {
     cenario: document.getElementById("selCenario").value,
     n_ocupantes: parseInt(document.getElementById("inpN").value || "300", 10),
@@ -646,6 +654,7 @@ async function reiniciar() {
   ESTADO = d.estado;
   agenteSelecionadoId = null;
   atualizarUI();
+  desenharTudo();
 }
 
 function filtrarTipo(cod) {
@@ -814,10 +823,17 @@ function desenharMapa() {
       ctx.fillRect(x * cw, py * ch, cw + 1, ch + 1);
     }
     const [mx, my] = cells[Math.floor(cells.length / 2)];
-    const lx = (mx + (pid === "S3" ? -2.5 : 1.8)) * cw;
-    const ly = (H - 0.5 - my + (pid === "S3" ? -1.2 : 0.3)) * ch;
+    const numero = parseInt(pid.slice(1), 10) || 1;
+    let lx = (mx + 0.5) * cw;
+    let ly = (H - 0.5 - my) * ch;
+    if (my >= H - 2) ly += (numero % 2 ? 1.8 : 3.2) * ch;
+    else if (my <= 1) ly -= (numero % 2 ? 1.4 : 2.8) * ch;
+    else if (mx <= 1) { lx += 2.5 * cw; ly += (numero % 2 ? 0.7 : -0.7) * ch; }
+    else { lx -= 2.5 * cw; ly += (numero % 2 ? 0.7 : -0.7) * ch; }
     ctx.fillStyle = "#86efac";
-    ctx.fillText(`🚪 ${pid} (${ESTADO.portas[pid] || 0})`, lx, ly);
+    ctx.textAlign = "center";
+    ctx.fillText(pid, lx, ly);
+    ctx.textAlign = "start";
   }
 
   // Portas bloqueadas (C3 / C4)
@@ -840,7 +856,7 @@ function desenharMapa() {
 
     let cor = ESTATICO.tipos[ag.tipo]?.cor || "#38bdf8";
     if (modoCor === "estado") cor = COR_ESTADO[ag.estado] || "#3b82f6";
-    else if (modoCor === "alvo") cor = COR_ALVO[ag.alvo] || "#64748b";
+    else if (modoCor === "alvo") cor = corAlvo(ag.alvo);
 
     if (mostrarVetores && ag.estado === 2) {
       ctx.strokeStyle = "rgba(255,255,255,0.38)";
@@ -983,10 +999,10 @@ function desenharGraficoPortas() {
 
   ctx.fillStyle = "#94a3b8";
   ctx.font = "bold 11px Inter, sans-serif";
-  ctx.fillText("Saídas Acumuladas por Porta (S1 / S2 / S3)", pad.l, 14);
+  ctx.fillText("Saídas Acumuladas por Porta", pad.l, 14);
 
   for (const k of portas) {
-    ctx.strokeStyle = COR_ALVO[k] || "#38bdf8";
+    ctx.strokeStyle = corAlvo(k);
     ctx.lineWidth = 2;
     ctx.beginPath();
     serie.forEach((p, i) => {
@@ -1016,6 +1032,12 @@ async function abrirModal2x2() {
   for (const cod of ["C1", "C2", "C3", "C4"]) {
     const c = d.cenarios[cod];
     const s = c.saidas;
+    const bloqueadas = ESTATICO.cenarios[cod].portas_bloqueadas || [];
+    const idsPortas = [...new Set([...Object.keys(s), ...bloqueadas])]
+      .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10));
+    const resumoPortas = idsPortas.map(pid =>
+      `${pid}: ${bloqueadas.includes(pid) ? "BLOQ" : (s[pid] || 0)}`
+    ).join(" · ");
     tb.innerHTML += `
       <tr>
         <td><strong>${c.titulo}</strong></td>
@@ -1024,7 +1046,7 @@ async function abrirModal2x2() {
         <td><strong>${c.t_ultimo} s</strong></td>
         <td>${c.fluxo_medio_min}</td>
         <td>${c.conflitos}</td>
-        <td>S1:${s.S1 || 0} | S2:${s.S2 || "BLOQ"} | S3:${s.S3 || 0}</td>
+        <td>${resumoPortas}</td>
       </tr>`;
   }
   desenharCurvas2x2(d.cenarios, d.n_ocupantes);
