@@ -44,6 +44,8 @@ class EvacuacaoModel(Model):
         self.calor_parado = np.zeros_like(self.calor)                   # agentes retidos
         self.historico_seguros: list[tuple[float, int]] = []
         self.agentes_total = []
+        self.ult_erro_llm: str | None = None
+        self.abortar_llm: bool = False
 
         # distância euclidiana (células) à porta mais próxima (abertura ao alcance do tato)
         xs, ys = np.meshgrid(np.arange(self.cen.largura), np.arange(self.cen.altura),
@@ -105,8 +107,9 @@ class EvacuacaoModel(Model):
                 try:
                     ag = OcupanteLLM(self, pos, func)
                 except Exception as exc:
+                    self.ult_erro_llm = f"Não foi possível iniciar agente LLM: {exc}"
                     logger.error("Não foi possível criar agente LLM (%s). Usando regras. "
-                                 "Defina a chave de API em .env.", exc)
+                                 "Defina a chave de API em .env ou no Dashboard.", exc)
                     llm_ok = False
             if ag is None:
                 ag = OcupanteRegras(self, pos, func)

@@ -21,7 +21,7 @@ import numpy as np  # noqa: E402
 from matplotlib.colors import ListedColormap  # noqa: E402
 
 from agentes import EVACUACAO, INVESTIGACAO, NORMAL  # noqa: E402
-from config import Parametros  # noqa: E402
+from config import CENARIOS_EXPERIMENTAIS, Parametros, parametros_por_cenario  # noqa: E402
 from modelo import EvacuacaoModel  # noqa: E402
 from tipos import TIPOS  # noqa: E402
 
@@ -68,8 +68,11 @@ def main():
     ap.add_argument("--n", type=int, default=None, help="número de ocupantes")
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument("--llm", type=int, default=0, help="nº de agentes de IA (Mesa-LLM)")
+    ap.add_argument("--gemini-key", default=None, help="chave GEMINI_API_KEY para testar via CLI")
     ap.add_argument("--modelo-llm", default=None, help="ex.: gemini/gemini-2.0-flash")
     ap.add_argument("--saida", default="resultados")
+    ap.add_argument("--comparar-2x2", action="store_true",
+                    help="compara os 4 cenários (C1-C4) Sem LLM vs. Com LLM")
     ap.add_argument("--snap", type=float, nargs="*", default=[0, 30, 90, 180, 300],
                     help="instantes (s) dos instantâneos")
     a = ap.parse_args()
@@ -80,6 +83,10 @@ def main():
     except ImportError:
         pass
     import os
+    if a.gemini_key:
+        os.environ["GEMINI_API_KEY"] = a.gemini_key.strip()
+        if a.llm == 0:
+            a.llm = 3
     logging.basicConfig(level=logging.WARNING)
 
     p = Parametros(n_llm=a.llm)
@@ -91,6 +98,43 @@ def main():
 
     out = Path(a.saida)
     out.mkdir(exist_ok=True)
+
+    if a.comparar_2x2:
+        n_llm_comp = max(1, a.llm or 3)
+        comp = {}
+        fig, ax = plt.subplots(figsize=(10, 4.8))
+        cores_c = {"C1": "#22c55e", "C2": "#38bdf8", "C3": "#f59e0b", "C4": "#ef4444"}
+        for cod in ("C1", "C2", "C3", "C4"):
+            comp[cod] = {"titulo": CENARIOS_EXPERIMENTAIS[cod]["titulo"]}
+            for rotulo, qtd_llm, estilo in (("sem_llm", 0, "-"), ("com_llm", n_llm_comp, "--")):
+                pc = parametros_por_cenario(
+                    cod, n_ocupantes=p.n_ocupantes, n_llm=qtd_llm,
+                    semente=p.semente, llm_model=p.llm_model, reavaliacao_passos=999999,
+                )
+                mc = EvacuacaoModel(pc)
+                ts, segs = [0.0], [0]
+                while mc.running:
+                    mc.step()
+                    ts.append(mc.t)
+                    segs.append(mc.n_seguros)
+                rc = mc.resumo()
+                comp[cod][rotulo] = rc
+                ax.plot(ts, segs, ls=estilo, c=cores_c[cod],
+                        label=f"{cod} {'Com LLM' if qtd_llm else 'Sem LLM'} ({rc['t_ultimo_s']}s)")
+                print(f"[{cod} | {rotulo}] t_50={rc['t_50%_s']}s | t_90={rc['t_90%_s']}s | "
+                      f"t_fim={rc['t_ultimo_s']}s | chamadas_llm={rc['chamadas_llm']}")
+        ax.set(xlabel="t (s)", ylabel="ocupantes seguros",
+               title=f"Comparação 2×2 (C1–C4): Sem LLM (contínua) vs. Com LLM ({n_llm_comp} ag., tracejada)")
+        ax.legend(fontsize=8, ncol=2)
+        fig.tight_layout()
+        fig.savefig(out / "comparacao_2x2.png", dpi=130)
+        plt.close(fig)
+        (out / "comparacao_2x2.json").write_text(
+            json.dumps(comp, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(f"Comparação 2x2 salva em {(out / 'comparacao_2x2.json').resolve()} e comparacao_2x2.png")
+        return
+
     m = EvacuacaoModel(p)
     snaps = sorted(a.snap)
     quadros = []

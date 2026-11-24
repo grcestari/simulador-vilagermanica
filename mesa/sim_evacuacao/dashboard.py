@@ -15,6 +15,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import os
 import threading
 import webbrowser
 from pathlib import Path
@@ -49,8 +50,19 @@ class EstadoSimulacao:
         self.seed = 42
         self.reiniciar("C2", 300, 0, 42)
 
-    def reiniciar(self, cenario: str = "C2", n: int = 300, n_llm: int = 0, seed: int = 42):
+    def reiniciar(
+        self,
+        cenario: str = "C2",
+        n: int = 300,
+        n_llm: int = 0,
+        seed: int = 42,
+        gemini_api_key: str | None = None,
+    ):
         with self.lock:
+            if gemini_api_key is not None:
+                chave = gemini_api_key.strip()
+                if chave:
+                    os.environ["GEMINI_API_KEY"] = chave
             self.cenario_codigo = cenario.upper()
             self.n_ocupantes = int(max(12, min(800, n)))
             self.n_llm = int(max(0, min(self.n_ocupantes, n_llm)))
@@ -210,6 +222,16 @@ class EstadoSimulacao:
             rho_max = round(float(max(rhos)), 2) if rhos else 0.0
             rho_p90 = round(float(np.percentile(rhos, 90)), 2) if rhos else 0.0
 
+            agentes_llm = [a for a in m.agentes_total if getattr(a, "usa_llm", False)]
+            chamadas_llm = int(sum(getattr(a, "chamadas_llm", 0) for a in agentes_llm))
+            falhas_llm = int(sum(getattr(a, "falhas_llm", 0) for a in agentes_llm))
+            chave_atual = os.environ.get("GEMINI_API_KEY", "").strip()
+            mascara_key = (
+                f"...{chave_atual[-4:]}"
+                if len(chave_atual) >= 4
+                else ("configurada" if chave_atual else "")
+            )
+
             return {
                 "cenario": self.cenario_codigo,
                 "titulo_cenario": CENARIOS_EXPERIMENTAIS[self.cenario_codigo]["titulo"],
@@ -219,6 +241,14 @@ class EstadoSimulacao:
                 "n_total": n_tot,
                 "n_seguros": int(m.n_seguros),
                 "n_ativos": len(agentes_ativos),
+                "tem_gemini_key": bool(chave_atual),
+                "gemini_key_mascara": mascara_key,
+                "n_llm_config": int(self.n_llm),
+                "n_llm_ativos": len(agentes_llm),
+                "chamadas_llm": chamadas_llm,
+                "falhas_llm": falhas_llm,
+                "ult_erro_llm": getattr(m, "ult_erro_llm", None),
+                "llm_model": m.p.llm_model,
                 "estados": {
                     "Normal": m._conta(NORMAL),
                     "Investigacao": m._conta(INVESTIGACAO),
@@ -308,6 +338,7 @@ async def api_reset(request: Request):
         n=int(body.get("n_ocupantes", ESTADO.n_ocupantes)),
         n_llm=int(body.get("n_llm", ESTADO.n_llm)),
         seed=int(body.get("seed", ESTADO.seed)),
+        gemini_api_key=body.get("gemini_api_key"),
     )
     return JSONResponse({"estatico": ESTADO._estatico, "estado": ESTADO.snapshot()})
 
@@ -318,34 +349,111 @@ async def api_agente(request: Request):
     return JSONResponse(det or {"erro": "Agente não encontrado"})
 
 
+def _indices_referencia_llm(agentes_total: list, n_llm_ref: int) -> list[int]:
+    por_tipo = {c: [i for i, ag in enumerate(agentes_total) if ag.tipo == c] for c in CODIGOS}
+    llm_idx, r = [], 0
+    while len(llm_idx) < min(max(0, n_llm_ref), len(agentes_total)):
+        c = CODIGOS[r % len(CODIGOS)]
+        if por_tipo[c]:
+            llm_idx.append(por_tipo[c].pop(0))
+        r += 1
+        if r > 10 * len(agentes_total) + 12:
+            break
+    return sorted(llm_idx)
+
+
+def _executar_cenario_comparacao(
+    cod: str, n: int, seed: int, n_llm: int, n_llm_ref: int, reavaliacao_passos: int
+) -> dict:
+    p = parametros_por_cenario(
+        cod,
+        n_ocupantes=n,
+        n_llm=n_llm,
+        semente=seed,
+        reavaliacao_passos=reavaliacao_passos,
+    )
+    m = EvacuacaoModel(p)
+    curva = [(0.0, 0)]
+    while m.running:
+        m.step()
+        if m.steps % 4 == 0 or not m.running:
+            curva.append((round(m.t, 1), int(m.n_seguros)))
+    res = m.resumo()
+    idx_ref = _indices_referencia_llm(m.agentes_total, n_llm_ref)
+    ag_ref = [m.agentes_total[i] for i in idx_ref]
+    ts_ref = [a.t_seguro for a in ag_ref if a.t_seguro is not None]
+    t_grupo_ia = round(float(np.mean(ts_ref)), 1) if ts_ref else None
+    trocas_grupo_ia = int(sum(a.trocas_alvo for a in ag_ref))
+    saidas_grupo_ia = [f"#{a.unique_id}({a.tipo})→{a.saida or a.alvo or '-'}" for a in ag_ref]
+    exemplo_just = next(
+        (
+            f"#{a.unique_id} ({a.tipo}): \"{a.memoria[-1]['justificativa']}\""
+            for a in ag_ref
+            if a.memoria and a.memoria[-1].get("justificativa") not in ("", "regra de utilidade")
+        ),
+        None,
+    )
+    return {
+        "codigo": cod,
+        "titulo": CENARIOS_EXPERIMENTAIS[cod]["titulo"],
+        "usa_llm": n_llm > 0,
+        "n_llm": res["agentes_llm"],
+        "chamadas_llm": res["chamadas_llm"],
+        "ult_erro_llm": m.ult_erro_llm,
+        "t_50": res["t_50%_s"],
+        "t_90": res["t_90%_s"],
+        "t_ultimo": res["t_ultimo_s"],
+        "t_grupo_ia": t_grupo_ia,
+        "trocas_grupo_ia": trocas_grupo_ia,
+        "saidas_grupo_ia": saidas_grupo_ia,
+        "exemplo_justificativa": exemplo_just,
+        "conflitos": res["conflitos"],
+        "trocas_alvo": res["trocas_de_alvo"],
+        "saidas": res["saidas"],
+        "fluxo_medio_min": round(res["seguros"] * 60.0 / max(1.0, res["t_ultimo_s"] or 1.0), 1),
+        "curva": curva,
+    }
+
+
 async def api_comparar_2x2(request: Request):
-    """Executa o Plano Experimental 2x2 (Slide 13: C1, C2, C3, C4) e retorna indicadores."""
+    """Executa o Plano Experimental 2x2 (C1, C2, C3, C4) Sem LLM, Com LLM ou Ambos."""
     body = await request.json()
+    if body.get("gemini_api_key"):
+        chave = str(body["gemini_api_key"]).strip()
+        if chave:
+            os.environ["GEMINI_API_KEY"] = chave
     n = int(body.get("n_ocupantes", ESTADO.n_ocupantes))
     seed = int(body.get("seed", ESTADO.seed))
+    modo = str(body.get("modo", "sem_llm")).lower()
+    n_llm_ref = max(1, int(body.get("n_llm", ESTADO.n_llm or 3)))
+    reavaliacao_passos = max(10, int(body.get("reavaliacao_passos", 60)))
+    lista_cenarios = body.get("cenarios") or ["C1", "C2", "C3", "C4"]
+    lista_cenarios = [c.upper() for c in lista_cenarios if c.upper() in CENARIOS_EXPERIMENTAIS]
+
     resultados = {}
-    for cod in ("C1", "C2", "C3", "C4"):
-        p = parametros_por_cenario(cod, n_ocupantes=n, n_llm=0, semente=seed)
-        m = EvacuacaoModel(p)
-        curva = [(0.0, 0)]
-        while m.running:
-            m.step()
-            if m.steps % 4 == 0 or not m.running:
-                curva.append((round(m.t, 1), int(m.n_seguros)))
-        res = m.resumo()
+    for cod in lista_cenarios:
+        sem_llm = None
+        com_llm = None
+        if modo in ("sem_llm", "ambos"):
+            sem_llm = _executar_cenario_comparacao(cod, n, seed, 0, n_llm_ref, reavaliacao_passos)
+        if modo in ("com_llm", "ambos"):
+            com_llm = _executar_cenario_comparacao(
+                cod, n, seed, n_llm_ref, n_llm_ref, reavaliacao_passos
+            )
+        base = sem_llm or com_llm
         resultados[cod] = {
-            "codigo": cod,
-            "titulo": CENARIOS_EXPERIMENTAIS[cod]["titulo"],
-            "t_50": res["t_50%_s"],
-            "t_90": res["t_90%_s"],
-            "t_ultimo": res["t_ultimo_s"],
-            "conflitos": res["conflitos"],
-            "trocas_alvo": res["trocas_de_alvo"],
-            "saidas": res["saidas"],
-            "fluxo_medio_min": round(res["seguros"] * 60.0 / max(1.0, res["t_ultimo_s"] or 1.0), 1),
-            "curva": curva,
+            **base,
+            "sem_llm": sem_llm,
+            "com_llm": com_llm,
         }
-    return JSONResponse({"n_ocupantes": n, "seed": seed, "cenarios": resultados})
+    return JSONResponse({
+        "n_ocupantes": n,
+        "seed": seed,
+        "modo": modo,
+        "n_llm": n_llm_ref,
+        "tem_gemini_key": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
+        "cenarios": resultados,
+    })
 
 
 app = Starlette(

@@ -80,7 +80,7 @@
     font-size: 11px;
     font-weight: 600;
   }
-  select, input[type="number"] {
+  select, input[type="number"], input[type="password"], input[type="text"] {
     background: var(--bg);
     color: var(--text);
     border: 1px solid var(--border);
@@ -334,7 +334,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 10px;
-    max-width: 980px;
+    max-width: 1140px;
     width: 100%;
     padding: 16px;
     max-height: 90vh;
@@ -389,6 +389,13 @@
       <label for="inpSeed">Seed:</label>
       <input id="inpSeed" type="number" min="1" max="9999" value="42" />
     </div>
+    <div class="ctrl-group">
+      <label for="inpGeminiKey">🔑 Gemini Key:</label>
+      <input id="inpGeminiKey" type="password" placeholder="Cole sua GEMINI_API_KEY..." autocomplete="off" style="width:165px;" oninput="aoDigitarGeminiKey()" onkeydown="if(event.key==='Enter') aplicarGeminiKey()" />
+      <button type="button" onclick="toggleMostrarKey()" style="padding:3px 6px; font-size:11px;" title="Mostrar/ocultar chave">👁</button>
+      <button type="button" onclick="aplicarGeminiKey()" style="padding:3px 8px; font-size:11px; border-color:rgba(124,58,237,0.6); background:rgba(124,58,237,0.22); color:#ddd6fe;" title="Aplica a chave Gemini e reinicia a simulação com agentes LLM">Aplicar</button>
+      <span id="statusGeminiKey" style="font-size:10px; color:var(--muted); white-space:nowrap;">Sem chave</span>
+    </div>
     <button id="btnPlay" class="primary" onclick="togglePlay()">▶ Executar</button>
     <button onclick="passoManual(1)">⏭ +0.5s</button>
     <button onclick="passoManual(20)">⏩ +10s</button>
@@ -403,7 +410,8 @@
         <option value="10">10× (5.0s/tick)</option>
       </select>
     </div>
-    <button class="exp" onclick="abrirModal2x2()">📊 Comparar 2×2 (C1–C4)</button>
+    <button class="exp" onclick="abrirModal2x2('sem_llm')">📊 Comparar 2×2 (Regras)</button>
+    <button class="exp" style="background:rgba(124,58,237,0.22); border-color:rgba(124,58,237,0.65); color:#ddd6fe;" onclick="abrirModal2x2('ambos')">🧠 Comparar C1–C4 (Com vs. Sem LLM)</button>
   </div>
 </header>
 
@@ -522,7 +530,7 @@
     <div class="card">
       <div class="card-header">
         <div class="card-title">🧠 Feed de Decisões dos Agentes (`saida` + `justificativa`)</div>
-        <span style="font-size:11px; color:var(--muted);">Últimas escolhas registradas</span>
+        <span id="feedStatusLLM" style="font-size:11px; color:var(--muted);">Últimas escolhas registradas</span>
       </div>
       <div id="feedDecisoes" class="feed-list"></div>
     </div>
@@ -533,28 +541,52 @@
 <div id="modal2x2" class="modal-backdrop">
   <div class="modal">
     <div class="card-header">
-      <div class="card-title">📊 Plano Experimental 2×2 — Blackout e Evacuação na Oktoberfest (Aula 14 · Slide 13)</div>
+      <div class="card-title">📊 Plano Experimental 2×2 — Comparação dos 4 Cenários (C1–C4) Com e Sem LLM</div>
       <button onclick="fecharModal2x2()">✖ Fechar</button>
     </div>
     <p style="color:var(--muted); font-size:12px; margin-bottom:8px;">
-      Compara os 4 cenários combinando <strong>Iluminação</strong> (Emergência vs. Blackout Total) × <strong>Saídas Disponíveis</strong> (Todas vs. Porta S2 Bloqueada).
+      Compara os 4 cenários combinando <strong>Iluminação</strong> (Emergência vs. Blackout Total) × <strong>Saídas Disponíveis</strong> (Todas vs. Porta S2 Bloqueada), permitindo confrontar a política <strong>Sem LLM (Regras de Utilidade)</strong> contra <strong>Com LLM (Mesa-LLM / Gemini)</strong> sob a mesma semente aleatória.
     </p>
+    <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; background:#0d1424; padding:8px 10px; border-radius:6px; border:1px solid var(--border);">
+      <div class="ctrl-group">
+        <label for="selModo2x2">Modo:</label>
+        <select id="selModo2x2">
+          <option value="ambos">Comparar Sem LLM vs. Com LLM (Lado a Lado)</option>
+          <option value="sem_llm">Somente Sem LLM (Regras)</option>
+          <option value="com_llm">Somente Com LLM (Mesa-LLM)</option>
+        </select>
+      </div>
+      <div class="ctrl-group">
+        <label for="inpLLM2x2">Agentes LLM:</label>
+        <input id="inpLLM2x2" type="number" min="1" max="24" step="1" value="3" title="Quantidade de agentes controlados pelo LLM em cada cenário" />
+      </div>
+      <div class="ctrl-group">
+        <label for="selFreqLLM2x2">Consulta IA:</label>
+        <select id="selFreqLLM2x2" title="Controla quantas vezes cada agente LLM consulta a API durante a evacuação">
+          <option value="999999" selected>1× por agente ao evacuar (Rápido · menor uso de cota)</option>
+          <option value="60">Reavaliar a cada 30s</option>
+          <option value="30">Reavaliar a cada 15s (Padrão)</option>
+        </select>
+      </div>
+      <button class="primary" onclick="executarComparacao2x2()">▶ Executar Comparação</button>
+    </div>
     <div id="status2x2" style="margin:8px 0; color:var(--accent); font-weight:600;"></div>
     <table class="exp-table" id="tabela2x2">
       <thead>
         <tr>
           <th>Cenário</th>
-          <th>Mediana t_50% (s)</th>
+          <th>Política</th>
+          <th>t_50% (s)</th>
           <th>t_90% (s)</th>
-          <th>Tempo Total t_fim (s)</th>
-          <th>Fluxo Médio (ped/min)</th>
-          <th>Conflitos</th>
-          <th>Saídas por porta</th>
+          <th>t_fim Total (s)</th>
+          <th>t_médio Grupo IA (s)</th>
+          <th>Fluxo / Conflitos / Trocas</th>
+          <th>Saídas por Porta &amp; Decisão IA</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
-    <canvas id="chart2x2" width="900" height="240" style="width:100%; background:#080d18; border-radius:6px; border:1px solid var(--border); margin-top:8px;"></canvas>
+    <canvas id="chart2x2" width="1080" height="260" style="width:100%; background:#080d18; border-radius:6px; border:1px solid var(--border); margin-top:8px;"></canvas>
   </div>
 </div>
 
@@ -587,8 +619,37 @@ async function inicializar() {
   atualizarUI();
 }
 
+function aoDigitarGeminiKey() {
+  const key = document.getElementById("inpGeminiKey").value.trim();
+  const inpLLM = document.getElementById("inpLLM");
+  if (key && parseInt(inpLLM.value || "0", 10) === 0) {
+    inpLLM.value = "3";
+  }
+}
+
+function toggleMostrarKey() {
+  const el = document.getElementById("inpGeminiKey");
+  el.type = el.type === "password" ? "text" : "password";
+}
+
+async function aplicarGeminiKey() {
+  aoDigitarGeminiKey();
+  await reiniciar();
+}
+
+async function verificarConfigPendenteAntesDeRodar() {
+  if (!ESTADO) return;
+  const keyDigitada = document.getElementById("inpGeminiKey").value.trim();
+  const llmInput = parseInt(document.getElementById("inpLLM").value || "0", 10);
+  if (keyDigitada || (ESTADO.steps === 0 && llmInput !== ESTADO.n_llm_config)) {
+    aoDigitarGeminiKey();
+    await reiniciar();
+  }
+}
+
 async function passoManual(n) {
   if (emRequisicao) return;
+  await verificarConfigPendenteAntesDeRodar();
   emRequisicao = true;
   try {
     const r = await fetch("/api/step", {
@@ -606,6 +667,7 @@ async function passoManual(n) {
 
 async function rodarAteFim() {
   if (timerPlay) togglePlay(false);
+  await verificarConfigPendenteAntesDeRodar();
   document.getElementById("statusTag").textContent = "PROCESSANDO...";
   const r = await fetch("/api/step", {
     method: "POST",
@@ -616,7 +678,7 @@ async function rodarAteFim() {
   atualizarUI();
 }
 
-function togglePlay(forcar) {
+async function togglePlay(forcar) {
   const btn = document.getElementById("btnPlay");
   const ligar = forcar !== undefined ? forcar : (timerPlay === null);
   if (!ligar) {
@@ -626,6 +688,7 @@ function togglePlay(forcar) {
     btn.classList.remove("running");
     return;
   }
+  await verificarConfigPendenteAntesDeRodar();
   btn.textContent = "⏸ Pausar";
   btn.classList.add("running");
   timerPlay = setInterval(() => {
@@ -636,6 +699,9 @@ function togglePlay(forcar) {
 
 async function reiniciar() {
   if (timerPlay) togglePlay(false);
+  aoDigitarGeminiKey();
+  const inpKey = document.getElementById("inpGeminiKey");
+  const keyDigitada = inpKey.value.trim();
   const tituloSelecionado = document.getElementById("selCenario").selectedOptions[0]?.textContent || "cenário";
   document.getElementById("subtituloCenario").textContent = `Aplicando ${tituloSelecionado}...`;
   const payload = {
@@ -643,6 +709,7 @@ async function reiniciar() {
     n_ocupantes: parseInt(document.getElementById("inpN").value || "300", 10),
     n_llm: parseInt(document.getElementById("inpLLM").value || "0", 10),
     seed: parseInt(document.getElementById("inpSeed").value || "42", 10),
+    gemini_api_key: keyDigitada || null,
   };
   const r = await fetch("/api/reset", {
     method: "POST",
@@ -652,6 +719,9 @@ async function reiniciar() {
   const d = await r.json();
   ESTATICO = d.estatico;
   ESTADO = d.estado;
+  if (keyDigitada && ESTADO.tem_gemini_key) {
+    inpKey.value = "";
+  }
   agenteSelecionadoId = null;
   atualizarUI();
   desenharTudo();
@@ -719,10 +789,38 @@ function atualizarGradeAtores() {
 }
 
 function atualizarFeed() {
+  const stKey = document.getElementById("statusGeminiKey");
+  const inpKey = document.getElementById("inpGeminiKey");
+  if (ESTADO.tem_gemini_key) {
+    stKey.textContent = `✓ Ativa (${ESTADO.gemini_key_mascara})`;
+    stKey.style.color = "var(--green)";
+    inpKey.placeholder = `Key ativa (${ESTADO.gemini_key_mascara})`;
+  } else {
+    stKey.textContent = "Sem chave";
+    stKey.style.color = "var(--muted)";
+    inpKey.placeholder = "Cole sua GEMINI_API_KEY...";
+  }
+
+  const stFeed = document.getElementById("feedStatusLLM");
+  if (ESTADO.n_llm_ativos > 0) {
+    stFeed.innerHTML = `<span class="badge-llm">${ESTADO.n_llm_ativos} AGENTES LLM</span> · ${ESTADO.chamadas_llm || 0} chamadas Gemini`;
+  } else {
+    stFeed.textContent = "Modo Regras (defina LLM > 0 e Gemini Key para IA)";
+  }
+
   const el = document.getElementById("feedDecisoes");
   el.innerHTML = "";
+  if (ESTADO.ult_erro_llm) {
+    const errDiv = document.createElement("div");
+    errDiv.style.cssText = "background:rgba(239,68,68,0.16); border:1px solid var(--red); color:#fca5a5; padding:6px 8px; border-radius:4px; font-size:11px; margin-bottom:4px;";
+    errDiv.textContent = `⚠ ${ESTADO.ult_erro_llm}`;
+    el.appendChild(errDiv);
+  }
   if (!ESTADO.decisoes.length) {
-    el.innerHTML = `<div style="color:var(--muted); font-size:11px;">Nenhuma decisão de saída tomada ainda (ocupantes em fase Normal/Investigação).</div>`;
+    const msg = ESTADO.n_llm_ativos > 0
+      ? `Aguardando os ${ESTADO.n_llm_ativos} agentes LLM (círculo amarelo no mapa) atingirem o estado de Evacuação (R ≥ 0.60) para consultar o Gemini...`
+      : "Nenhuma decisão de saída tomada ainda (ocupantes em fase Normal/Investigação).";
+    el.innerHTML += `<div style="color:var(--muted); font-size:11px;">${msg}</div>`;
     return;
   }
   for (const d of ESTADO.decisoes) {
@@ -1014,42 +1112,148 @@ function desenharGraficoPortas() {
   }
 }
 
-async function abrirModal2x2() {
-  document.getElementById("modal2x2").style.display = "flex";
-  const st = document.getElementById("status2x2");
-  st.textContent = "Executando os 4 cenários (C1, C2, C3 e C4)... aguarde ~3 segundos.";
-  const n = parseInt(document.getElementById("inpN").value || "300", 10);
-  const seed = parseInt(document.getElementById("inpSeed").value || "42", 10);
-  const r = await fetch("/api/comparar", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ n_ocupantes: n, seed: seed })
-  });
-  const d = await r.json();
-  st.textContent = `Comparação concluída (${d.n_ocupantes} ocupantes, seed=${d.seed}).`;
+let comparacaoEmAndamento = false;
+
+function formatarDelta(vCom, vSem) {
+  if (vCom === null || vCom === undefined || vSem === null || vSem === undefined) return "";
+  const d = +(vCom - vSem).toFixed(1);
+  if (d === 0) return ` <span style="color:var(--muted); font-size:10px;">(0.0s)</span>`;
+  const cor = d < 0 ? "var(--green)" : "var(--amber)";
+  const sinal = d > 0 ? "+" : "";
+  return ` <span style="color:${cor}; font-size:10px; font-weight:700;">(${sinal}${d}s)</span>`;
+}
+
+function montarLinha2x2(cod, item, refSem, primeiraLinha, rowspan) {
+  const s = item.saidas || {};
+  const bloqueadas = (ESTATICO && ESTATICO.cenarios[cod]?.portas_bloqueadas) || [];
+  const idsPortas = [...new Set([...Object.keys(s), ...bloqueadas])]
+    .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10));
+  const resumoPortas = idsPortas.map(pid =>
+    `${pid}: ${bloqueadas.includes(pid) ? "BLOQ" : (s[pid] || 0)}`
+  ).join(" · ");
+
+  const ehLLM = item.usa_llm;
+  const badgePol = ehLLM
+    ? `<span class="badge-llm">COM LLM</span> <span style="font-size:10px; color:var(--muted);">(${item.n_llm} ag. · ${item.chamadas_llm} cham.)</span>`
+    : `<span style="color:var(--muted); font-weight:600;">Sem LLM (Regras)</span>`;
+
+  const deltaFim = (ehLLM && refSem) ? formatarDelta(item.t_ultimo, refSem.t_ultimo) : "";
+  const delta50 = (ehLLM && refSem) ? formatarDelta(item.t_50, refSem.t_50) : "";
+  const deltaGrupo = (ehLLM && refSem) ? formatarDelta(item.t_grupo_ia, refSem.t_grupo_ia) : "";
+
+  let extraIA = "";
+  if (item.saidas_grupo_ia && item.saidas_grupo_ia.length) {
+    extraIA += `<div style="font-size:10px; color:#cbd5e1; margin-top:2px;">Agentes monitorados: ${item.saidas_grupo_ia.join(", ")}</div>`;
+  }
+  if (ehLLM && item.exemplo_justificativa) {
+    extraIA += `<div style="font-size:10px; color:#a78bfa; margin-top:2px;">💬 ${item.exemplo_justificativa}</div>`;
+  }
+  if (ehLLM && item.ult_erro_llm) {
+    extraIA += `<div style="font-size:10px; color:var(--red); margin-top:2px;">⚠ ${item.ult_erro_llm}</div>`;
+  }
+
+  const colCenario = primeiraLinha
+    ? `<td rowspan="${rowspan}" style="vertical-align:middle;"><strong>${item.titulo}</strong></td>`
+    : "";
+
+  return `
+    <tr style="${ehLLM ? 'background:rgba(124,58,237,0.08);' : ''}">
+      ${colCenario}
+      <td>${badgePol}</td>
+      <td>${item.t_50 ?? "--"} s${delta50}</td>
+      <td>${item.t_90 ?? "--"} s</td>
+      <td><strong>${item.t_ultimo ?? "--"} s</strong>${deltaFim}</td>
+      <td>${item.t_grupo_ia !== null ? item.t_grupo_ia + " s" : "--"}${deltaGrupo} <span style="color:var(--muted); font-size:10px;">(${item.trocas_grupo_ia} trocas)</span></td>
+      <td>${item.fluxo_medio_min} ped/min · ${item.conflitos} confl. · ${item.trocas_alvo} trocas</td>
+      <td><div>${resumoPortas}</div>${extraIA}</td>
+    </tr>`;
+}
+
+function renderizarTabela2x2(cenariosAcumulados) {
   const tb = document.querySelector("#tabela2x2 tbody");
   tb.innerHTML = "";
   for (const cod of ["C1", "C2", "C3", "C4"]) {
-    const c = d.cenarios[cod];
-    const s = c.saidas;
-    const bloqueadas = ESTATICO.cenarios[cod].portas_bloqueadas || [];
-    const idsPortas = [...new Set([...Object.keys(s), ...bloqueadas])]
-      .sort((a, b) => parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10));
-    const resumoPortas = idsPortas.map(pid =>
-      `${pid}: ${bloqueadas.includes(pid) ? "BLOQ" : (s[pid] || 0)}`
-    ).join(" · ");
-    tb.innerHTML += `
-      <tr>
-        <td><strong>${c.titulo}</strong></td>
-        <td>${c.t_50} s</td>
-        <td>${c.t_90} s</td>
-        <td><strong>${c.t_ultimo} s</strong></td>
-        <td>${c.fluxo_medio_min}</td>
-        <td>${c.conflitos}</td>
-        <td>${resumoPortas}</td>
-      </tr>`;
+    const c = cenariosAcumulados[cod];
+    if (!c) continue;
+    const temSem = !!c.sem_llm;
+    const temCom = !!c.com_llm;
+    if (temSem && temCom) {
+      tb.innerHTML += montarLinha2x2(cod, c.sem_llm, null, true, 2);
+      tb.innerHTML += montarLinha2x2(cod, c.com_llm, c.sem_llm, false, 2);
+    } else if (temSem) {
+      tb.innerHTML += montarLinha2x2(cod, c.sem_llm, null, true, 1);
+    } else if (temCom) {
+      tb.innerHTML += montarLinha2x2(cod, c.com_llm, null, true, 1);
+    }
   }
-  desenharCurvas2x2(d.cenarios, d.n_ocupantes);
+}
+
+async function abrirModal2x2(modoInicial) {
+  document.getElementById("modal2x2").style.display = "flex";
+  const inpLLMHeader = parseInt(document.getElementById("inpLLM").value || "0", 10);
+  if (inpLLMHeader > 0) {
+    document.getElementById("inpLLM2x2").value = String(inpLLMHeader);
+  }
+  if (modoInicial) {
+    document.getElementById("selModo2x2").value = modoInicial;
+  } else if (ESTADO && (ESTADO.tem_gemini_key || document.getElementById("inpGeminiKey").value.trim())) {
+    document.getElementById("selModo2x2").value = "ambos";
+  }
+  await executarComparacao2x2();
+}
+
+async function executarComparacao2x2() {
+  if (comparacaoEmAndamento) return;
+  comparacaoEmAndamento = true;
+  const st = document.getElementById("status2x2");
+  const modo = document.getElementById("selModo2x2").value;
+  const n = parseInt(document.getElementById("inpN").value || "300", 10);
+  const seed = parseInt(document.getElementById("inpSeed").value || "42", 10);
+  const n_llm = Math.max(1, parseInt(document.getElementById("inpLLM2x2").value || "3", 10));
+  const reavaliacao_passos = parseInt(document.getElementById("selFreqLLM2x2").value || "999999", 10);
+  const keyDigitada = document.getElementById("inpGeminiKey").value.trim();
+
+  const tb = document.querySelector("#tabela2x2 tbody");
+  tb.innerHTML = "";
+  const cenariosAcumulados = {};
+  const codigos = ["C1", "C2", "C3", "C4"];
+
+  try {
+    for (let i = 0; i < codigos.length; i++) {
+      const cod = codigos[i];
+      const descModo = modo === "ambos"
+        ? `Sem LLM vs. Com LLM (${n_llm} agentes IA)`
+        : (modo === "com_llm" ? `Com LLM (${n_llm} agentes IA)` : "Sem LLM (Regras)");
+      st.textContent = `Executando cenário ${cod} (${i + 1}/4) — ${descModo}...`;
+
+      const r = await fetch("/api/comparar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          n_ocupantes: n,
+          seed: seed,
+          modo: modo,
+          n_llm: n_llm,
+          reavaliacao_passos: reavaliacao_passos,
+          gemini_api_key: keyDigitada || null,
+          cenarios: [cod],
+        })
+      });
+      const d = await r.json();
+      if (keyDigitada && d.tem_gemini_key) {
+        document.getElementById("inpGeminiKey").value = "";
+        if (ESTADO) ESTADO.tem_gemini_key = true;
+      }
+      cenariosAcumulados[cod] = d.cenarios[cod];
+      renderizarTabela2x2(cenariosAcumulados);
+      desenharCurvas2x2(cenariosAcumulados, n);
+    }
+    st.textContent = `Comparação 2×2 concluída (${n} ocupantes, seed=${seed}, modo=${modo === "ambos" ? "Sem LLM vs. Com LLM" : modo}).`;
+  } catch (err) {
+    st.textContent = `Erro na comparação: ${err}`;
+  } finally {
+    comparacaoEmAndamento = false;
+  }
 }
 
 function fecharModal2x2() {
@@ -1061,31 +1265,56 @@ function desenharCurvas2x2(cenarios, nTot) {
   const ctx = cv.getContext("2d");
   ctx.clearRect(0, 0, cv.width, cv.height);
   const cores = { C1: "#22c55e", C2: "#38bdf8", C3: "#f59e0b", C4: "#ef4444" };
-  const pad = { l: 44, r: 20, t: 26, b: 26 };
+  const pad = { l: 44, r: 20, t: 32, b: 26 };
   const pw = cv.width - pad.l - pad.r, ph = cv.height - pad.t - pad.b;
   let maxT = 10;
-  for (const c of Object.values(cenarios))
-    if (c.t_ultimo > maxT) maxT = c.t_ultimo;
+  for (const c of Object.values(cenarios)) {
+    if (!c) continue;
+    if (c.sem_llm && c.sem_llm.t_ultimo > maxT) maxT = c.sem_llm.t_ultimo;
+    if (c.com_llm && c.com_llm.t_ultimo > maxT) maxT = c.com_llm.t_ultimo;
+  }
 
   ctx.fillStyle = "#e6edf7";
   ctx.font = "bold 12px Inter, sans-serif";
-  ctx.fillText("Curvas de Evacuação Comparadas (Ocupantes Seguros × Tempo)", pad.l, 16);
+  ctx.fillText("Curvas de Evacuação C1–C4 (─── Sem LLM  |  - - - Com LLM)", pad.l, 18);
 
-  let lx = pad.l + 420;
+  let lx = pad.l + 430;
   for (const cod of ["C1", "C2", "C3", "C4"]) {
     const c = cenarios[cod];
+    if (!c) continue;
     ctx.strokeStyle = cores[cod];
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    c.curva.forEach(([t, seg], i) => {
-      const x = pad.l + (t / maxT) * pw;
-      const y = pad.t + ph - (seg / nTot) * ph;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
+
+    if (c.sem_llm) {
+      ctx.setLineDash([]);
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      c.sem_llm.curva.forEach(([t, seg], i) => {
+        const x = pad.l + (t / maxT) * pw;
+        const y = pad.t + ph - (seg / nTot) * ph;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    if (c.com_llm) {
+      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      c.com_llm.curva.forEach(([t, seg], i) => {
+        const x = pad.l + (t / maxT) * pw;
+        const y = pad.t + ph - (seg / nTot) * ph;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([]);
     ctx.fillStyle = cores[cod];
-    ctx.fillText(`${cod} (${c.t_ultimo}s)`, lx, 16);
-    lx += 110;
+    const tSem = c.sem_llm ? `${c.sem_llm.t_ultimo}s` : "";
+    const tCom = c.com_llm ? `${c.com_llm.t_ultimo}s` : "";
+    const txt = (tSem && tCom) ? `${cod} (${tSem} / IA:${tCom})` : `${cod} (${tSem || tCom})`;
+    ctx.fillText(txt, lx, 18);
+    lx += 145;
   }
 }
 
