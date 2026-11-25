@@ -21,7 +21,9 @@ import numpy as np
 # a área de 964 m² anotada para o salão principal na própria planta.
 LARGURA, ALTURA = 52, 122
 
-PASTA_MAPA = Path(__file__).resolve().parent.parent / "PVG_shapefile-20261123"
+_PASTA_PADRAO = Path(__file__).resolve().parent.parent / "PVG_shapefile-20261123"
+_PASTA_GAMA = Path(__file__).resolve().parents[2] / "gama" / "simulacao-vila-germanica" / "includes"
+PASTA_MAPA = _PASTA_PADRAO if _PASTA_PADRAO.is_dir() else _PASTA_GAMA
 ARQUIVO_GEOMETRIAS = PASTA_MAPA / "pvg_geometrias.shp"
 ARQUIVO_ATRIBUTOS_GEOMETRIAS = PASTA_MAPA / "pvg_geometrias.dbf"
 ARQUIVO_TEXTOS = PASTA_MAPA / "pvg_textos.shp"

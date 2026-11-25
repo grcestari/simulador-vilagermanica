@@ -319,9 +319,18 @@ if MESA_LLM_OK:
             if self.falhas_llm >= p.llm_max_falhas or getattr(self.model, "abortar_llm", False):
                 return None, ""
             try:
-                resp = self.llm.generate(
-                    prompt=[json.dumps(ctx, ensure_ascii=False)],
-                    response_format=EscolhaSaida)
+                gen_fn = getattr(self.llm.generate, "__wrapped__", None)
+                if gen_fn is not None:
+                    resp = gen_fn(
+                        self.llm,
+                        prompt=[json.dumps(ctx, ensure_ascii=False)],
+                        response_format=EscolhaSaida,
+                    )
+                else:
+                    resp = self.llm.generate(
+                        prompt=[json.dumps(ctx, ensure_ascii=False)],
+                        response_format=EscolhaSaida,
+                    )
                 bruto = resp.choices[0].message.content
                 esc = EscolhaSaida.model_validate_json(bruto)
                 if not any(o["indice"] == esc.saida for o in ctx["opcoes"]):
