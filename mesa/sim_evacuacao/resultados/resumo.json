@@ -1,17 +1,23 @@
 {
   "ocupantes": 300,
   "seguros": 300,
-  "t_50%_s": 101.5,
-  "t_90%_s": 189.0,
-  "t_ultimo_s": 256.0,
-  "t_inicio_evacuacao_medio_s": 20.59548611111111,
+  "t_50%_s": 69.5,
+  "t_90%_s": 132.0,
+  "t_ultimo_s": 241.5,
+  "t_inicio_evacuacao_medio_s": 22.96875,
   "saidas": {
-    "S1": 87,
-    "S2": 110,
-    "S3": 103
+    "S1": 19,
+    "S2": 22,
+    "S3": 44,
+    "S4": 47,
+    "S5": 39,
+    "S6": 51,
+    "S7": 36,
+    "S8": 29,
+    "S9": 13
   },
-  "conflitos": 233,
-  "trocas_de_alvo": 202,
+  "conflitos": 101,
+  "trocas_de_alvo": 360,
   "agentes_llm": 0,
   "chamadas_llm": 0,
   "respostas_llm_invalidas": 0,
@@ -19,74 +25,74 @@
     "T01": {
       "nome": "Adulto sóbrio",
       "n": 138,
-      "t_seguro_medio_s": 101.3,
-      "t_seguro_max_s": 256.0
+      "t_seguro_medio_s": 71.1,
+      "t_seguro_max_s": 179.5
     },
     "T02": {
       "nome": "Álcool: comprometimento moderado",
       "n": 36,
-      "t_seguro_medio_s": 108.9,
-      "t_seguro_max_s": 210.5
+      "t_seguro_medio_s": 73.2,
+      "t_seguro_max_s": 200.5
     },
     "T03": {
       "nome": "Álcool: comprometimento acentuado",
       "n": 15,
-      "t_seguro_medio_s": 109.7,
-      "t_seguro_max_s": 249.0
+      "t_seguro_medio_s": 110.3,
+      "t_seguro_max_s": 241.5
     },
     "T04": {
       "nome": "Criança",
       "n": 15,
-      "t_seguro_medio_s": 128.8,
-      "t_seguro_max_s": 190.5
+      "t_seguro_medio_s": 75.0,
+      "t_seguro_max_s": 137.5
     },
     "T05": {
       "nome": "Pessoa idosa autônoma",
       "n": 24,
-      "t_seguro_medio_s": 111.8,
-      "t_seguro_max_s": 212.5
+      "t_seguro_medio_s": 80.7,
+      "t_seguro_max_s": 219.0
     },
     "T06": {
       "nome": "Mobilidade reduzida",
       "n": 9,
-      "t_seguro_medio_s": 131.6,
-      "t_seguro_max_s": 198.0
+      "t_seguro_medio_s": 99.9,
+      "t_seguro_max_s": 147.5
     },
     "T07": {
       "nome": "Pessoa em cadeira de rodas",
       "n": 6,
-      "t_seguro_medio_s": 105.7,
-      "t_seguro_max_s": 157.0
+      "t_seguro_medio_s": 89.7,
+      "t_seguro_max_s": 128.5
     },
     "T08": {
       "nome": "Pessoa com baixa visão",
       "n": 9,
-      "t_seguro_medio_s": 97.7,
-      "t_seguro_max_s": 153.5
+      "t_seguro_medio_s": 70.6,
+      "t_seguro_max_s": 133.5
     },
     "T09": {
       "nome": "Pessoa com deficiência auditiva",
       "n": 9,
-      "t_seguro_medio_s": 138.3,
-      "t_seguro_max_s": 190.5
+      "t_seguro_medio_s": 86.3,
+      "t_seguro_max_s": 159.0
     },
     "T10": {
       "nome": "Necessidade de apoio à orientação",
       "n": 9,
-      "t_seguro_medio_s": 88.9,
-      "t_seguro_max_s": 189.5
+      "t_seguro_medio_s": 61.9,
+      "t_seguro_max_s": 78.0
     },
     "T11": {
       "nome": "Acompanhante / cuidador",
       "n": 12,
-      "t_seguro_medio_s": 104.4,
-      "t_seguro_max_s": 186.5
+      "t_seguro_medio_s": 65.8,
+      "t_seguro_max_s": 98.0
     },
     "T12": {
       "nome": "Funcionário / brigadista",
       "n": 18,
-      "t_seguro_medio_s": 94.1,
-      "t_seguro_max_s": 208.0
+      "t_seguro_medio_s": 77.3,
+      "t_seguro_max_s": 153.0
     }
   }
 }

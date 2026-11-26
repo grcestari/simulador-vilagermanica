@@ -1,0 +1,84 @@
+{
+  "C1": {
+    "titulo": "C1 – Controle (Iluminação de Emergência + Todas as Saídas)",
+    "t_50": 54.0,
+    "t_90": 115.0,
+    "t_fim": 197.0,
+    "t_evac_medio": 23.1,
+    "conflitos": 125,
+    "trocas": 274,
+    "saidas": {
+      "S1": 18,
+      "S2": 32,
+      "S3": 53,
+      "S4": 41,
+      "S5": 41,
+      "S6": 45,
+      "S7": 26,
+      "S8": 19,
+      "S9": 25
+    },
+    "fluxo_min": 91.4
+  },
+  "C2": {
+    "titulo": "C2 – Blackout Total (Sem Iluminação + Todas as Saídas)",
+    "t_50": 69.5,
+    "t_90": 132.0,
+    "t_fim": 241.5,
+    "t_evac_medio": 23.0,
+    "conflitos": 101,
+    "trocas": 360,
+    "saidas": {
+      "S1": 19,
+      "S2": 22,
+      "S3": 44,
+      "S4": 47,
+      "S5": 39,
+      "S6": 51,
+      "S7": 36,
+      "S8": 29,
+      "S9": 13
+    },
+    "fluxo_min": 74.5
+  },
+  "C3": {
+    "titulo": "C3 – Saída Bloqueada (Iluminação de Emergência + S2 Bloqueada)",
+    "t_50": 53.5,
+    "t_90": 94.0,
+    "t_fim": 153.5,
+    "t_evac_medio": 21.3,
+    "conflitos": 155,
+    "trocas": 226,
+    "saidas": {
+      "S1": 20,
+      "S3": 49,
+      "S4": 49,
+      "S5": 55,
+      "S6": 47,
+      "S7": 30,
+      "S8": 25,
+      "S9": 25
+    },
+    "fluxo_min": 117.3
+  },
+  "C4": {
+    "titulo": "C4 – Cenário Crítico (Blackout Total + S2 Bloqueada)",
+    "t_50": 72.0,
+    "t_90": 131.5,
+    "t_fim": 243.0,
+    "t_evac_medio": 22.9,
+    "conflitos": 126,
+    "trocas": 366,
+    "saidas": {
+      "S1": 15,
+      "S3": 43,
+      "S4": 58,
+      "S5": 48,
+      "S6": 53,
+      "S7": 32,
+      "S8": 26,
+      "S9": 25
+    },
+    "fluxo_min": 74.1
+  }
+}

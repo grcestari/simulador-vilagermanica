@@ -316,12 +316,21 @@ if MESA_LLM_OK:
 
         def _escolher_llm(self, ctx):
             p = self.model.p
-            if self.falhas_llm >= p.llm_max_falhas:
+            if self.falhas_llm >= p.llm_max_falhas or getattr(self.model, "abortar_llm", False):
                 return None, ""
             try:
-                resp = self.llm.generate(
-                    prompt=[json.dumps(ctx, ensure_ascii=False)],
-                    response_format=EscolhaSaida)
+                gen_fn = getattr(self.llm.generate, "__wrapped__", None)
+                if gen_fn is not None:
+                    resp = gen_fn(
+                        self.llm,
+                        prompt=[json.dumps(ctx, ensure_ascii=False)],
+                        response_format=EscolhaSaida,
+                    )
+                else:
+                    resp = self.llm.generate(
+                        prompt=[json.dumps(ctx, ensure_ascii=False)],
+                        response_format=EscolhaSaida,
+                    )
                 bruto = resp.choices[0].message.content
                 esc = EscolhaSaida.model_validate_json(bruto)
                 if not any(o["indice"] == esc.saida for o in ctx["opcoes"]):
@@ -329,14 +338,20 @@ if MESA_LLM_OK:
             except ValueError as exc:       # JSON/índice inválido
                 self.respostas_invalidas += 1
                 self.falhas_llm += 1
+                self.model.ult_erro_llm = f"Resposta inválida (Agente #{self.unique_id}): {exc}"
                 logger.warning("Resposta inválida (agente %s): %s", self.unique_id, exc)
                 return None, ""
-            except Exception as exc:        # rede, cota...
+            except Exception as exc:        # rede, cota, chave inválida...
                 self.falhas_llm += 1
+                msg = str(exc)
+                self.model.ult_erro_llm = f"Falha na chamada LLM (Agente #{self.unique_id}): {msg}"
+                if "API_KEY_INVALID" in msg or "API key not valid" in msg or "AuthenticationError" in type(exc).__name__:
+                    self.model.abortar_llm = True
                 logger.warning("LLM falhou (agente %s): %s", self.unique_id, exc)
                 return None, ""
             self.falhas_llm = 0
             self.chamadas_llm += 1
+            self.model.ult_erro_llm = None
             self.memory.add_to_memory(type="decision", content={
                 "saida": esc.saida, "justificativa": esc.justificativa})
             self.log_llm.append({"t_s": self.model.t, "tipo": self.tipo, "contexto": ctx,

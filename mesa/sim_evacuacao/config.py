@@ -64,7 +64,7 @@ class Parametros:
 
     # ------------------------------------------------------------ Mesa-LLM
     n_llm: int = 0                    # nº de agentes de IA (distribuídos entre os 12 tipos)
-    llm_model: str = "gemini/gemini-2.0-flash"
+    llm_model: str = "gemini/gemini-3-flash-preview"
     llm_api_base: str | None = None
     reavaliacao_passos: int = 30      # reavalia a saída-alvo a cada 15 s (inércia)
     llm_max_falhas: int = 3           # falhas seguidas -> volta às regras
